@@ -1,6 +1,7 @@
 import { canFollowSymbol, entitlements, getTierMessage } from "./domain/entitlements.js";
 import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
 import { renderMarketChart } from "./services/chartRenderer.js?v=labels-20260520";
+import { loadAppVersion } from "./services/appVersionProvider.js";
 import { marketDataProvider } from "./services/marketDataProvider.js";
 import { memberProfileStore } from "./services/memberProfileStore.js";
 
@@ -14,7 +15,8 @@ const state = {
   chartRange: "6M",
   includeSymbolDetails: true,
   snapshots: [],
-  snapshotMeta: null
+  snapshotMeta: null,
+  appVersion: null
 };
 
 const app = document.querySelector("#app");
@@ -60,6 +62,12 @@ function getEmailSnapshots() {
 
   const symbols = state.followedSymbols.length > 0 ? state.followedSymbols : defaultFollowedSymbols;
   return symbols
+    .map((symbol) => state.snapshots.find((snapshot) => snapshot.definition.symbol === symbol))
+    .filter(Boolean);
+}
+
+function getFollowedSnapshots() {
+  return state.followedSymbols
     .map((symbol) => state.snapshots.find((snapshot) => snapshot.definition.symbol === symbol))
     .filter(Boolean);
 }
@@ -126,6 +134,42 @@ function handleFollowToggle(symbol) {
   render();
 }
 
+function renderVersionBadge() {
+  const label = state.appVersion?.label ?? "local";
+  return `<span class="version-badge" title="Build ${state.appVersion?.buildId ?? label}">v ${label}</span>`;
+}
+
+function renderFollowedList(entitlement) {
+  if (state.tier === "visitor") {
+    return `<p class="side-note compact">登入 Patreon 後可建立個人追蹤清單。</p>`;
+  }
+
+  const followedSnapshots = getFollowedSnapshots();
+
+  if (followedSnapshots.length === 0) {
+    return `<p class="side-note compact">尚未追蹤 symbol。從下方搜尋結果加入。</p>`;
+  }
+
+  return `
+    <div class="followed-list">
+      ${followedSnapshots
+        .map(
+          (snapshot) => `
+            <button class="followed-item ${state.selectedSymbol === snapshot.definition.symbol ? "active" : ""}" data-followed-select="${snapshot.definition.symbol}">
+              <span class="symbol-name">
+                <strong>${snapshot.definition.symbol}</strong>
+                <span>${snapshot.definition.displayName}</span>
+              </span>
+              <span class="remove-follow" role="button" data-unfollow="${snapshot.definition.symbol}" aria-label="Remove ${snapshot.definition.symbol}">−</span>
+            </button>
+          `
+        )
+        .join("")}
+    </div>
+    <p class="side-note compact">Followed: ${state.followedSymbols.length}/${entitlement.maxFollowedSymbols}</p>
+  `;
+}
+
 function renderSidebar() {
   const visibleSnapshots = getVisibleSnapshots();
   const entitlement = entitlements[state.tier];
@@ -133,7 +177,7 @@ function renderSidebar() {
   return `
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-kicker">Math of Stars</span>
+        <span class="brand-kicker">Math of Stars ${renderVersionBadge()}</span>
         <h1>Market Dashboard</h1>
       </div>
 
@@ -151,6 +195,11 @@ function renderSidebar() {
             .join("")}
         </div>
         <p class="side-note">${getTierMessage(state.tier)}</p>
+      </section>
+
+      <section class="followed-block">
+        <span class="label">Followed symbols</span>
+        ${renderFollowedList(entitlement)}
       </section>
 
       <section class="search-block">
@@ -182,9 +231,6 @@ function renderSidebar() {
             })
             .join("")}
         </div>
-        <p class="side-note">
-          Followed: ${state.followedSymbols.length}/${entitlement.maxFollowedSymbols}
-        </p>
       </section>
     </aside>
   `;
@@ -330,6 +376,29 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll("[data-followed-select]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      const target = event.target;
+      const unfollowTarget = target.closest("[data-unfollow]");
+      if (unfollowTarget) {
+        event.stopPropagation();
+
+        const symbol = unfollowTarget.dataset.unfollow;
+        if (symbol) {
+          handleFollowToggle(symbol);
+        }
+        return;
+      }
+
+      const symbol = button.dataset.followedSelect;
+      if (symbol) {
+        state.selectedSymbol = symbol;
+        persistProfile();
+        render();
+      }
+    });
+  });
+
   document.querySelector("[data-include-details]")?.addEventListener("change", (event) => {
     state.includeSymbolDetails = event.target.checked;
     persistProfile();
@@ -364,9 +433,10 @@ function render() {
 }
 
 async function boot() {
-  const payload = await marketDataProvider.load();
+  const [payload, appVersion] = await Promise.all([marketDataProvider.load(), loadAppVersion()]);
   state.snapshots = payload.snapshots;
   state.snapshotMeta = payload.meta;
+  state.appVersion = appVersion;
   applyStoredProfile(memberProfileStore.load());
   render();
 }
