@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "python3 -m http.server 5173"
+    "dev": "python3 -m http.server 5173",
+    "check": "node --check src/main.js",
+    "fetch:data": "python3 -B jobs/fetch_yahoo_snapshots.py"
   },
   "dependencies": {},
   "devDependencies": {}
