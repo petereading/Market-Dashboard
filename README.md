@@ -26,7 +26,7 @@ Then open:
 http://localhost:5173
 ```
 
-No build step is required for Stage 1.
+For local development, no build step is required before serving the static files.
 
 ## Build Version
 
@@ -36,7 +36,24 @@ The sidebar displays the app version from:
 public/version.json
 ```
 
-For now this is a committed Stage 1 build label. Later, Cloudflare Pages can generate the same file from `CF_PAGES_COMMIT_SHA` so the badge reflects the deployed commit automatically.
+For Cloudflare Pages, use this build command:
+
+```bash
+npm run build
+```
+
+The build script writes `public/version.json` from `CF_PAGES_COMMIT_SHA`, so the badge reflects the deployed commit automatically. Locally, it falls back to a Stage 1 label.
+
+## Member Profile Storage
+
+The UI talks to `src/services/memberProfileRepository.js`. In Stage 1 that repository uses browser local storage through `memberProfileStore`.
+
+When Supabase credentials are ready, replace the repository internals with a Supabase-backed implementation while keeping the UI contract:
+
+```js
+await memberProfileRepository.load();
+await memberProfileRepository.save(profile);
+```
 
 ## Data Job
 
@@ -50,7 +67,7 @@ The current indicator engine is labelled `prototype-yahoo-v0`. It produces the p
 
 ## Deployment Target
 
-Cloudflare Pages, with no build command for Stage 1. Custom domain planned as:
+Cloudflare Pages. Use `npm run build` as the build command so the deployed app writes a fresh version badge. Custom domain planned as:
 
 ```text
 dashboard.mathofstars.com
