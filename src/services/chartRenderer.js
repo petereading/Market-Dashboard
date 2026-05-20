@@ -1,8 +1,8 @@
 const dividerStyles = [
-  ["week", "週", "#8a7a35"],
-  ["month", "月", "#b64f36"],
-  ["quarter", "季", "#4f6fb6"],
-  ["year", "年", "#655d74"]
+  ["week", "週分界", "#d946ef"],
+  ["month", "月分界", "#ff8a00"],
+  ["quarter", "季分界", "#2563eb"],
+  ["year", "年分界", "#9ca3af"]
 ];
 
 function getLibrary() {
@@ -116,6 +116,19 @@ function createBaseChart(container, height, rightPriceScaleVisible = true) {
   });
 }
 
+function getDividerSeriesData(snapshot, key) {
+  const source = snapshot.indicator.dividerHistory?.[key];
+  if (Array.isArray(source) && source.length > 0) {
+    return source.map((point) => ({
+      time: point.date,
+      value: Number(point.value)
+    }));
+  }
+
+  const value = snapshot.indicator.dividers[key];
+  return snapshot.prices.map((point) => ({ time: point.date, value }));
+}
+
 export function renderMarketChart(container, snapshot, range = "6M") {
   const LightweightCharts = getLibrary();
   container.replaceChildren();
@@ -155,13 +168,15 @@ export function renderMarketChart(container, snapshot, range = "6M") {
 
     const lineSeries = priceChart.addSeries(LightweightCharts.LineSeries, {
       color,
-      lineWidth: 1,
-      lineStyle: LightweightCharts.LineStyle.Dashed,
+      lineWidth: 2,
+      lineType: LightweightCharts.LineType.WithSteps,
+      pointMarkersVisible: true,
+      pointMarkersRadius: 2,
       priceLineVisible: false,
       lastValueVisible: false,
       title: label
     });
-    lineSeries.setData(snapshot.prices.map((point) => ({ time: point.date, value })));
+    lineSeries.setData(getDividerSeriesData(snapshot, key));
     candleSeries.createPriceLine({
       price: value,
       color,
