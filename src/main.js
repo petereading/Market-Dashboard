@@ -3,7 +3,7 @@ import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
 import { renderMarketChart } from "./services/chartRenderer.js?v=labels-20260520";
 import { loadAppVersion } from "./services/appVersionProvider.js";
 import { marketDataProvider } from "./services/marketDataProvider.js";
-import { memberProfileStore } from "./services/memberProfileStore.js";
+import { memberProfileRepository } from "./services/memberProfileRepository.js";
 
 const defaultFollowedSymbols = ["^HSI", "^GSPC", "BTC-USD"];
 
@@ -73,12 +73,16 @@ function getFollowedSnapshots() {
 }
 
 function persistProfile() {
-  memberProfileStore.save({
-    tier: state.tier,
-    selectedSymbol: state.selectedSymbol,
-    followedSymbols: state.followedSymbols,
-    includeSymbolDetails: state.includeSymbolDetails
-  });
+  void memberProfileRepository
+    .save({
+      tier: state.tier,
+      selectedSymbol: state.selectedSymbol,
+      followedSymbols: state.followedSymbols,
+      includeSymbolDetails: state.includeSymbolDetails
+    })
+    .catch((error) => {
+      console.warn("Unable to persist member profile.", error);
+    });
 }
 
 function clampFollowedSymbols(tier, symbols) {
@@ -437,7 +441,7 @@ async function boot() {
   state.snapshots = payload.snapshots;
   state.snapshotMeta = payload.meta;
   state.appVersion = appVersion;
-  applyStoredProfile(memberProfileStore.load());
+  applyStoredProfile(await memberProfileRepository.load());
   render();
 }
 
