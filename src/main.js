@@ -1,6 +1,6 @@
 import { canFollowSymbol, entitlements, getTierMessage } from "./domain/entitlements.js";
 import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
-import { renderMarketChart } from "./services/chartRenderer.js";
+import { renderMarketChart } from "./services/chartRenderer.js?v=labels-20260520";
 import { marketDataProvider } from "./services/marketDataProvider.js";
 
 const defaultFollowedSymbols = ["^HSI", "^GSPC", "BTC-USD"];
