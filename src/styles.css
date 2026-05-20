@@ -228,7 +228,8 @@ button {
 }
 
 .chart-legend,
-.range-controls {
+.range-controls,
+.divider-legend {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -263,6 +264,42 @@ button {
 
 .legend-swatch.sma {
   background: #b64f36;
+}
+
+.divider-legend {
+  flex-wrap: wrap;
+  margin-top: -8px;
+  color: #5c6865;
+  font-size: 0.84rem;
+}
+
+.divider-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.legend-dot.week {
+  background: #d946ef;
+}
+
+.legend-dot.month {
+  background: #ff8a00;
+}
+
+.legend-dot.quarter {
+  background: #2563eb;
+}
+
+.legend-dot.year {
+  background: #9ca3af;
 }
 
 .range-controls {
