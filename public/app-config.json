@@ -1,0 +1,11 @@
+{
+  "profileStorage": "local",
+  "supabase": {
+    "enabled": false,
+    "url": "",
+    "publishableKey": ""
+  },
+  "stage1": {
+    "memberId": ""
+  }
+}
