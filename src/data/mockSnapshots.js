@@ -41,10 +41,41 @@ function createPriceSeries(symbol, base) {
     const drift = (index - 45) * 0.0012;
     const noise = Math.cos((index + seed) / 3) * 0.015;
     const close = base * (1 + wave + drift + noise);
+    const open = index === 0 ? close * 0.995 : base * (1 + Math.sin((index - 1 + seed) / 8) * 0.05 + (index - 46) * 0.0012);
+    const high = Math.max(open, close) * (1 + 0.004 + (index % 4) * 0.001);
+    const low = Math.min(open, close) * (1 - 0.004 - (index % 3) * 0.001);
 
     return {
       date: date.toISOString().slice(0, 10),
+      open: Number(open.toFixed(base > 100 ? 2 : 4)),
+      high: Number(high.toFixed(base > 100 ? 2 : 4)),
+      low: Number(low.toFixed(base > 100 ? 2 : 4)),
       close: Number(close.toFixed(base > 100 ? 2 : 4))
+    };
+  });
+}
+
+function createIndicatorHistory(prices) {
+  const closes = prices.map((point) => point.close);
+
+  return prices.map((point, index) => {
+    const window = closes.slice(Math.max(0, index - 119), index + 1);
+    const low = Math.min(...window);
+    const high = Math.max(...window);
+    const prValue = high === low ? 50 : ((closes[index] - low) / (high - low)) * 100;
+    const prValues = closes.slice(0, index + 1).map((close, prIndex) => {
+      const prWindow = closes.slice(Math.max(0, prIndex - 119), prIndex + 1);
+      const prLow = Math.min(...prWindow);
+      const prHigh = Math.max(...prWindow);
+      return prHigh === prLow ? 50 : ((close - prLow) / (prHigh - prLow)) * 100;
+    });
+    const smaWindow = prValues.slice(-10);
+    const sma1 = smaWindow.reduce((sum, value) => sum + value, 0) / smaWindow.length;
+
+    return {
+      date: point.date,
+      prValue: Number(prValue.toFixed(1)),
+      sma1: Number(sma1.toFixed(1))
     };
   });
 }
@@ -52,6 +83,7 @@ function createPriceSeries(symbol, base) {
 export const mockSnapshots = stage1Symbols.map((definition, index) => {
   const base = basePrices[definition.symbol] ?? 100;
   const prices = createPriceSeries(definition.symbol, base);
+  const history = createIndicatorHistory(prices);
   const price = prices.at(-1)?.close ?? base;
   const monthDivider = Number((price * (0.95 + (index % 5) * 0.015)).toFixed(base > 100 ? 2 : 4));
   const prValue = 42 + ((index * 7) % 51);
@@ -79,7 +111,8 @@ export const mockSnapshots = stage1Symbols.map((definition, index) => {
       distanceToMonthPct: Number((((price - monthDivider) / monthDivider) * 100).toFixed(2)),
       status,
       rank: index + 1,
-      signal: prValue > sma1 ? "動能改善" : "等待確認"
+      signal: prValue > sma1 ? "動能改善" : "等待確認",
+      history
     },
     coachSummary:
       status === "強勢" || status === "改善中"
