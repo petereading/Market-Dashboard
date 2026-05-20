@@ -1,5 +1,6 @@
 import { canFollowSymbol, entitlements, getTierMessage } from "./domain/entitlements.js";
 import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
+import { renderMarketChart } from "./services/chartRenderer.js";
 import { marketDataProvider } from "./services/marketDataProvider.js";
 
 const defaultFollowedSymbols = ["^HSI", "^GSPC", "BTC-USD"];
@@ -9,6 +10,7 @@ const state = {
   selectedSymbol: "^HSI",
   followedSymbols: [],
   query: "",
+  chartRange: "6M",
   includeSymbolDetails: true,
   snapshots: [],
   snapshotMeta: null
@@ -87,103 +89,6 @@ function handleFollowToggle(symbol) {
   }
 
   render();
-}
-
-function drawChart(canvas, snapshot) {
-  const context = canvas.getContext("2d");
-  if (!context) {
-    return;
-  }
-
-  const ratio = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.floor(rect.width * ratio);
-  canvas.height = Math.floor(rect.height * ratio);
-  context.scale(ratio, ratio);
-
-  const width = rect.width;
-  const height = rect.height;
-  const padding = { top: 24, right: 58, bottom: 34, left: 16 };
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const values = [
-    ...snapshot.prices.map((point) => point.close),
-    snapshot.indicator.dividers.week,
-    snapshot.indicator.dividers.month,
-    snapshot.indicator.dividers.quarter,
-    snapshot.indicator.dividers.year
-  ];
-  const min = Math.min(...values) * 0.985;
-  const max = Math.max(...values) * 1.015;
-
-  const x = (index) =>
-    padding.left + (index / Math.max(snapshot.prices.length - 1, 1)) * plotWidth;
-  const y = (value) =>
-    padding.top + ((max - value) / Math.max(max - min, 1)) * plotHeight;
-
-  context.clearRect(0, 0, width, height);
-  context.fillStyle = "#fffdf7";
-  context.fillRect(0, 0, width, height);
-
-  context.strokeStyle = "#e4ddcf";
-  context.lineWidth = 1;
-  for (let index = 0; index <= 4; index += 1) {
-    const gridY = padding.top + (plotHeight / 4) * index;
-    context.beginPath();
-    context.moveTo(padding.left, gridY);
-    context.lineTo(width - padding.right, gridY);
-    context.stroke();
-  }
-
-  context.strokeStyle = "#245c58";
-  context.lineWidth = 2;
-  context.beginPath();
-  snapshot.prices.forEach((point, index) => {
-    const pointX = x(index);
-    const pointY = y(point.close);
-    if (index === 0) {
-      context.moveTo(pointX, pointY);
-    } else {
-      context.lineTo(pointX, pointY);
-    }
-  });
-  context.stroke();
-
-  const dividerStyles = [
-    ["週", snapshot.indicator.dividers.week, "#8a7a35"],
-    ["月", snapshot.indicator.dividers.month, "#b64f36"],
-    ["季", snapshot.indicator.dividers.quarter, "#4f6fb6"],
-    ["年", snapshot.indicator.dividers.year, "#655d74"]
-  ];
-
-  dividerStyles.forEach(([label, value, color]) => {
-    const lineY = y(value);
-    context.strokeStyle = color;
-    context.setLineDash([6, 5]);
-    context.beginPath();
-    context.moveTo(padding.left, lineY);
-    context.lineTo(width - padding.right, lineY);
-    context.stroke();
-    context.setLineDash([]);
-    context.fillStyle = color;
-    context.font = "12px system-ui";
-    context.fillText(`${label} ${formatNumber(value)}`, width - padding.right + 8, lineY + 4);
-  });
-
-  const latest = snapshot.prices.at(-1);
-  if (latest) {
-    context.fillStyle = "#245c58";
-    context.beginPath();
-    context.arc(x(snapshot.prices.length - 1), y(latest.close), 4, 0, Math.PI * 2);
-    context.fill();
-  }
-
-  context.fillStyle = "#69726f";
-  context.font = "12px system-ui";
-  context.fillText(snapshot.prices[0]?.date ?? "", padding.left, height - 12);
-  context.textAlign = "right";
-  context.fillText(snapshot.indicator.asOf, width - padding.right, height - 12);
-  context.textAlign = "left";
 }
 
 function renderSidebar() {
@@ -275,8 +180,26 @@ function renderMain() {
 
       <div class="workspace">
         <section class="chart-section">
+          <div class="chart-toolbar">
+            <div class="chart-legend">
+              <span><i class="legend-swatch price"></i>Price</span>
+              <span><i class="legend-swatch pr"></i>PR</span>
+              <span><i class="legend-swatch sma"></i>SMA1</span>
+            </div>
+            <div class="range-controls" aria-label="Chart range">
+              ${["3M", "6M", "1Y", "All"]
+                .map(
+                  (range) => `
+                    <button class="range-button ${state.chartRange === range ? "active" : ""}" data-range="${range}">
+                      ${range}
+                    </button>
+                  `
+                )
+                .join("")}
+            </div>
+          </div>
           <div class="chart-wrap">
-            <canvas class="chart" data-chart></canvas>
+            <div class="chart" data-chart></div>
           </div>
 
           <div class="metric-grid">
@@ -371,6 +294,16 @@ function bindEvents() {
     state.includeSymbolDetails = event.target.checked;
     render();
   });
+
+  document.querySelectorAll("[data-range]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const range = button.dataset.range;
+      if (range) {
+        state.chartRange = range;
+        render();
+      }
+    });
+  });
 }
 
 function render() {
@@ -385,7 +318,7 @@ function render() {
 
   const chart = document.querySelector("[data-chart]");
   if (chart) {
-    drawChart(chart, getSelectedSnapshot());
+    renderMarketChart(chart, getSelectedSnapshot(), state.chartRange);
   }
 }
 
@@ -394,13 +327,6 @@ async function boot() {
   state.snapshots = payload.snapshots;
   state.snapshotMeta = payload.meta;
   render();
-
-  window.addEventListener("resize", () => {
-    const chart = document.querySelector("[data-chart]");
-    if (chart) {
-      drawChart(chart, getSelectedSnapshot());
-    }
-  });
 }
 
 void boot();
