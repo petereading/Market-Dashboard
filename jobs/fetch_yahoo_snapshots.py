@@ -169,6 +169,38 @@ def rolling_average(values: list[float], length: int) -> list[float]:
     return [average(values[max(0, index - length + 1) : index + 1]) for index in range(len(values))]
 
 
+def period_key(date_text: str, period: str) -> tuple[int, int]:
+    day = datetime.fromisoformat(date_text).date()
+    if period == "week":
+        iso_year, iso_week, _ = day.isocalendar()
+        return (iso_year, iso_week)
+    if period == "month":
+        return (day.year, day.month)
+    if period == "quarter":
+        return (day.year, ((day.month - 1) // 3) + 1)
+    if period == "year":
+        return (day.year, 1)
+    raise ValueError(f"Unknown period: {period}")
+
+
+def freeze_levels_by_period(prices: list[dict[str, Any]], values: list[float], period: str) -> list[float]:
+    if not values:
+        return []
+
+    frozen: list[float] = []
+    active_value = values[0]
+    current_key = period_key(prices[0]["date"], period)
+
+    for index, point in enumerate(prices):
+        next_key = period_key(point["date"], period)
+        if next_key != current_key:
+            active_value = values[index - 1] if index > 0 else values[index]
+            current_key = next_key
+        frozen.append(active_value)
+
+    return frozen
+
+
 def price_position(price: float, dividers: dict[str, float]) -> str:
     if price >= dividers["month"] and price >= dividers["quarter"]:
         return "高於月及季分界"
@@ -218,11 +250,15 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
     previous = closes[-2] if len(closes) > 1 else price
     pr_values = rolling_pr_values(closes)
     sma1_values = rolling_average(pr_values, 10)
-    divider_values = {
+    raw_divider_values = {
         "week": rolling_moving_average(closes, 5),
         "month": rolling_moving_average(closes, 21),
         "quarter": rolling_moving_average(closes, 63),
         "year": rolling_moving_average(closes, YEAR_DIVIDER_LENGTH),
+    }
+    divider_values = {
+        key: freeze_levels_by_period(all_prices, values, key)
+        for key, values in raw_divider_values.items()
     }
     pr_value = round(pr_values[-1], 1)
     sma1 = round(sma1_values[-1], 1)
