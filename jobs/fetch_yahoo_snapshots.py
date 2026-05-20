@@ -71,15 +71,8 @@ STAGE_1_SYMBOLS = [
 
 def yahoo_headers() -> dict[str, str]:
     return {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36"
-        ),
-        "Accept": "application/json,text/plain,*/*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Connection": "keep-alive",
-        "Origin": "https://finance.yahoo.com",
-        "Referer": "https://finance.yahoo.com/",
+        "User-Agent": "MarketDashboard/0.1 (+private research MVP)",
+        "Accept": "application/json",
     }
 
 
@@ -90,7 +83,7 @@ def fetch_chart(symbol: str, range_: str = "1y", interval: str = "1d") -> dict[s
     for host in YAHOO_HOSTS:
         url = (
             f"https://{host}/v8/finance/chart/{encoded}"
-            f"?range={range_}&interval={interval}&includePrePost=false&events=div%7Csplit"
+            f"?range={quote(range_)}&interval={quote(interval)}&includePrePost=false&events=div%2Csplits"
         )
         request = Request(url, headers=yahoo_headers())
 
