@@ -19,4 +19,21 @@ const version = {
 await mkdir("public", { recursive: true });
 await writeFile("public/version.json", `${JSON.stringify(version, null, 2)}\n`, "utf8");
 
+const supabaseUrl = process.env.PUBLIC_SUPABASE_URL ?? "";
+const supabasePublishableKey = process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+const appConfig = {
+  profileStorage: process.env.PUBLIC_PROFILE_STORAGE_MODE === "supabase" ? "supabase" : "local",
+  supabase: {
+    enabled: Boolean(supabaseUrl && supabasePublishableKey),
+    url: supabaseUrl,
+    publishableKey: supabasePublishableKey
+  },
+  stage1: {
+    memberId: process.env.PUBLIC_STAGE1_MEMBER_ID ?? ""
+  }
+};
+
+await writeFile("public/app-config.json", `${JSON.stringify(appConfig, null, 2)}\n`, "utf8");
+
 console.log(`Wrote public/version.json for ${version.label}`);
+console.log(`Wrote public/app-config.json with ${appConfig.profileStorage} profile storage`);
