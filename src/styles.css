@@ -56,10 +56,28 @@ button {
 }
 
 .brand-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: #69726f;
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 132px;
+  min-height: 20px;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: #e8e1d3;
+  color: #52605d;
+  font-size: 0.68rem;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .brand h1 {
@@ -70,6 +88,7 @@ button {
 
 .tier-switcher,
 .search-block,
+.followed-block,
 .watchlist-block {
   display: grid;
   gap: 10px;
@@ -139,6 +158,40 @@ button {
   border-color: #76aaa4;
 }
 
+.followed-list {
+  display: grid;
+  gap: 6px;
+}
+
+.followed-item {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: #1f2c2d;
+  background: #edf5f2;
+  border: 1px solid #cbded9;
+  text-align: left;
+}
+
+.followed-item.active {
+  border-color: #5f9f97;
+  box-shadow: inset 3px 0 0 #2f7672;
+}
+
+.remove-follow {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #fffdf7;
+  color: #6d756f;
+}
+
 .symbol-name {
   min-width: 0;
 }
@@ -176,6 +229,10 @@ button {
   color: #69726f;
   font-size: 0.86rem;
   line-height: 1.5;
+}
+
+.side-note.compact {
+  margin: 0;
 }
 
 .main {
