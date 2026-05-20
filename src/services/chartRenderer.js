@@ -156,11 +156,12 @@ export function renderMarketChart(container, snapshot, range = "6M") {
     borderDownColor: "#d9574d",
     wickUpColor: "#2f8f83",
     wickDownColor: "#d9574d",
-    priceLineVisible: false
+    priceLineVisible: false,
+    lastValueVisible: false
   });
   candleSeries.setData(candleData);
 
-  dividerStyles.forEach(([key, label, color]) => {
+  dividerStyles.forEach(([key, _label, color]) => {
     const value = snapshot.indicator.dividers[key];
     if (!Number.isFinite(Number(value))) {
       return;
@@ -173,8 +174,7 @@ export function renderMarketChart(container, snapshot, range = "6M") {
       pointMarkersVisible: true,
       pointMarkersRadius: 2,
       priceLineVisible: false,
-      lastValueVisible: false,
-      title: label
+      lastValueVisible: false
     });
     lineSeries.setData(getDividerSeriesData(snapshot, key));
   });
@@ -185,8 +185,7 @@ export function renderMarketChart(container, snapshot, range = "6M") {
     color: "#245c58",
     lineWidth: 2,
     priceLineVisible: false,
-    lastValueVisible: false,
-    title: "PR"
+    lastValueVisible: false
   });
   prSeries.setData(momentumHistory.map((point) => ({ time: point.time, value: point.prValue })));
 
@@ -194,8 +193,7 @@ export function renderMarketChart(container, snapshot, range = "6M") {
     color: "#b64f36",
     lineWidth: 1,
     priceLineVisible: false,
-    lastValueVisible: false,
-    title: "SMA1"
+    lastValueVisible: false
   });
   smaSeries.setData(momentumHistory.map((point) => ({ time: point.time, value: point.sma1 })));
 
