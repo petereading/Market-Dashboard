@@ -1,0 +1,65 @@
+name: Refresh Yahoo Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Comma-separated symbols, or empty for all Stage 1 symbols"
+        required: false
+        default: ""
+      sleep:
+        description: "Seconds to sleep between Yahoo requests"
+        required: false
+        default: "0.25"
+  schedule:
+    # 07:30 HKT Tuesday-Saturday, after the US close has settled.
+    - cron: "30 23 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      DASHBOARD_SYMBOLS: ${{ github.event.inputs.symbols || '' }}
+      DASHBOARD_SLEEP: ${{ github.event.inputs.sleep || '0.25' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Fetch Yahoo dashboard data
+        run: |
+          if [ -n "$DASHBOARD_SYMBOLS" ]; then
+            python jobs/fetch_yahoo_snapshots.py --symbols "$DASHBOARD_SYMBOLS" --sleep "$DASHBOARD_SLEEP"
+          else
+            python jobs/fetch_yahoo_snapshots.py --sleep "$DASHBOARD_SLEEP"
+          fi
+
+      - name: Commit refreshed artifact
+        run: |
+          if [ -z "$(git status --porcelain -- public/data/latest.json)" ]; then
+            echo "No data changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/latest.json
+          git commit -m "Refresh Yahoo dashboard data"
+          git pull --rebase origin main
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "git push failed on attempt ${attempt}; retrying in 15 seconds..."
+            sleep 15
+          done
+          echo "git push failed after 5 attempts."
+          exit 1
