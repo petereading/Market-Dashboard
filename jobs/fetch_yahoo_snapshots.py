@@ -161,6 +161,10 @@ def moving_average(closes: list[float], length: int) -> float:
     return average(window)
 
 
+def rolling_moving_average(closes: list[float], length: int) -> list[float]:
+    return [average(closes[max(0, index - length + 1) : index + 1]) for index in range(len(closes))]
+
+
 def rolling_average(values: list[float], length: int) -> list[float]:
     return [average(values[max(0, index - length + 1) : index + 1]) for index in range(len(values))]
 
@@ -214,13 +218,19 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
     previous = closes[-2] if len(closes) > 1 else price
     pr_values = rolling_pr_values(closes)
     sma1_values = rolling_average(pr_values, 10)
+    divider_values = {
+        "week": rolling_moving_average(closes, 5),
+        "month": rolling_moving_average(closes, 21),
+        "quarter": rolling_moving_average(closes, 63),
+        "year": rolling_moving_average(closes, YEAR_DIVIDER_LENGTH),
+    }
     pr_value = round(pr_values[-1], 1)
     sma1 = round(sma1_values[-1], 1)
     dividers = {
-        "week": round(moving_average(closes, 5), 4),
-        "month": round(moving_average(closes, 21), 4),
-        "quarter": round(moving_average(closes, 63), 4),
-        "year": round(moving_average(closes, YEAR_DIVIDER_LENGTH), 4),
+        "week": round(divider_values["week"][-1], 4),
+        "month": round(divider_values["month"][-1], 4),
+        "quarter": round(divider_values["quarter"][-1], 4),
+        "year": round(divider_values["year"][-1], 4),
     }
     status = status_from(price, pr_value, sma1, dividers)
     display_start = max(0, len(all_prices) - DISPLAY_CANDLES)
@@ -260,6 +270,16 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
             "status": status,
             "rank": 0,
             "signal": signal_from(pr_values, sma1, status),
+            "dividerHistory": {
+                key: [
+                    {
+                        "date": point["date"],
+                        "value": round(values[index], 4),
+                    }
+                    for index, point in enumerate(all_prices[display_start:], start=display_start)
+                ]
+                for key, values in divider_values.items()
+            },
             "history": display_history,
         },
         "coachSummary": coach_summary(status),
