@@ -220,19 +220,107 @@ button {
   gap: 16px;
 }
 
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chart-legend,
+.range-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-legend {
+  flex-wrap: wrap;
+  color: #5c6865;
+  font-size: 0.84rem;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-swatch.price {
+  background: #2f8f83;
+}
+
+.legend-swatch.pr {
+  background: #245c58;
+}
+
+.legend-swatch.sma {
+  background: #b64f36;
+}
+
+.range-controls {
+  padding: 4px;
+  border: 1px solid #dfd8ca;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.range-button {
+  min-width: 44px;
+  min-height: 32px;
+  border-radius: 6px;
+  background: transparent;
+  color: #40504f;
+  font-size: 0.84rem;
+}
+
+.range-button.active {
+  background: #2f7672;
+  color: #ffffff;
+}
+
 .chart-wrap {
   min-height: 420px;
   border: 1px solid #dfd8ca;
   border-radius: 8px;
-  background: #fffdf7;
-  padding: 14px;
+  background: #ffffff;
+  padding: 10px;
 }
 
 .chart {
-  display: block;
+  display: grid;
+  gap: 8px;
   width: 100%;
-  height: min(54vh, 520px);
-  min-height: 360px;
+  min-height: 492px;
+}
+
+.chart-pane {
+  width: 100%;
+  overflow: hidden;
+}
+
+.price-pane {
+  min-height: 330px;
+}
+
+.momentum-pane {
+  min-height: 150px;
+}
+
+.chart-empty {
+  min-height: 492px;
+  display: grid;
+  place-items: center;
+  color: #69726f;
+  text-align: center;
+  padding: 24px;
 }
 
 .metric-grid {
@@ -345,6 +433,15 @@ button {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .chart-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .range-controls {
+    justify-content: space-between;
   }
 
   .metric-grid {
