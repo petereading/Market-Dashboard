@@ -108,15 +108,22 @@ def parse_prices(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
     timestamps = result.get("timestamp") or []
     quote_data = result.get("indicators", {}).get("quote", [{}])[0]
+    opens = quote_data.get("open") or []
+    highs = quote_data.get("high") or []
+    lows = quote_data.get("low") or []
     closes = quote_data.get("close") or []
 
     prices: list[dict[str, Any]] = []
-    for timestamp, close in zip(timestamps, closes):
-        if close is None or not math.isfinite(float(close)):
+    for timestamp, open_, high, low, close in zip(timestamps, opens, highs, lows, closes):
+        values = [open_, high, low, close]
+        if any(value is None or not math.isfinite(float(value)) for value in values):
             continue
         prices.append(
             {
                 "date": datetime.fromtimestamp(timestamp, tz=timezone.utc).date().isoformat(),
+                "open": round(float(open_), 4),
+                "high": round(float(high), 4),
+                "low": round(float(low), 4),
                 "close": round(float(close), 4),
             }
         )
@@ -144,6 +151,10 @@ def rolling_pr_values(closes: list[float], lookback: int = 120) -> list[float]:
 def moving_average(closes: list[float], length: int) -> float:
     window = closes[-length:] if len(closes) >= length else closes
     return average(window)
+
+
+def rolling_average(values: list[float], length: int) -> list[float]:
+    return [average(values[max(0, index - length + 1) : index + 1]) for index in range(len(values))]
 
 
 def price_position(price: float, dividers: dict[str, float]) -> str:
@@ -194,8 +205,9 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
     price = closes[-1]
     previous = closes[-2] if len(closes) > 1 else price
     pr_values = rolling_pr_values(closes)
+    sma1_values = rolling_average(pr_values, 10)
     pr_value = round(pr_values[-1], 1)
-    sma1 = round(average(pr_values[-10:]), 1)
+    sma1 = round(sma1_values[-1], 1)
     dividers = {
         "week": round(moving_average(closes, 5), 4),
         "month": round(moving_average(closes, 21), 4),
@@ -228,6 +240,14 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
             "status": status,
             "rank": 0,
             "signal": signal_from(pr_values, sma1, status),
+            "history": [
+                {
+                    "date": point["date"],
+                    "prValue": round(pr_values[index], 1),
+                    "sma1": round(sma1_values[index], 1),
+                }
+                for index, point in enumerate(prices)
+            ],
         },
         "coachSummary": coach_summary(status),
         "newsSummary": "Stage 1 暫未接入新聞來源；正式版本會按 symbol 生成週度新聞重點。",
