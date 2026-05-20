@@ -183,8 +183,6 @@ function renderMain() {
           <div class="chart-toolbar">
             <div class="chart-legend">
               <span><i class="legend-swatch price"></i>Price</span>
-              <span><i class="legend-swatch pr"></i>PR</span>
-              <span><i class="legend-swatch sma"></i>SMA1</span>
             </div>
             <div class="range-controls" aria-label="Chart range">
               ${["3M", "6M", "1Y", "All"]
@@ -202,6 +200,7 @@ function renderMain() {
             <div class="chart" data-chart></div>
           </div>
           <div class="divider-legend" aria-label="Divider legend">
+            <span><i class="legend-dot momentum"></i>動能指數</span>
             <span><i class="legend-dot week"></i>週分界</span>
             <span><i class="legend-dot month"></i>月分界</span>
             <span><i class="legend-dot quarter"></i>季分界</span>
