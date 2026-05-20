@@ -201,6 +201,12 @@ function renderMain() {
           <div class="chart-wrap">
             <div class="chart" data-chart></div>
           </div>
+          <div class="divider-legend" aria-label="Divider legend">
+            <span><i class="legend-dot week"></i>週分界</span>
+            <span><i class="legend-dot month"></i>月分界</span>
+            <span><i class="legend-dot quarter"></i>季分界</span>
+            <span><i class="legend-dot year"></i>年分界</span>
+          </div>
 
           <div class="metric-grid">
             <div class="metric"><span>現價</span><strong>${formatNumber(snapshot.indicator.price)}</strong></div>
