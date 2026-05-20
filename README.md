@@ -7,6 +7,7 @@ Stage 1 is an internal MVP that proves the product loop before Supabase, Patreon
 - Visitor/free/paid entitlement modes
 - Curated Stage 1 market universe
 - Watchlist limits
+- Browser-persisted member profile placeholder
 - Chart view with public indicator overlays
 - Daily snapshot data shape
 - Weekly narrative email preview
@@ -49,3 +50,13 @@ dashboard.mathofstars.com
 Copy `.env.example` to `.env.local` when credentials are ready.
 
 Secrets must stay out of GitHub. Supabase secret keys, database URLs, Patreon credentials, and email API keys should be configured as local environment variables and Cloudflare Pages secrets.
+
+## Supabase Draft
+
+When the Supabase project is ready, start with:
+
+```text
+supabase/schema.sql
+```
+
+The current UI stores tier, selected symbol, followed symbols, and email-detail preference in browser local storage. That is a Stage 1 stand-in for the future Supabase member profile and watchlist tables.
