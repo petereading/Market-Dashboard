@@ -177,14 +177,6 @@ export function renderMarketChart(container, snapshot, range = "6M") {
       title: label
     });
     lineSeries.setData(getDividerSeriesData(snapshot, key));
-    candleSeries.createPriceLine({
-      price: value,
-      color,
-      lineWidth: 1,
-      lineStyle: LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: label
-    });
   });
 
   const momentumHistory = buildPrototypeMomentumHistory(snapshot);
@@ -193,6 +185,7 @@ export function renderMarketChart(container, snapshot, range = "6M") {
     color: "#245c58",
     lineWidth: 2,
     priceLineVisible: false,
+    lastValueVisible: false,
     title: "PR"
   });
   prSeries.setData(momentumHistory.map((point) => ({ time: point.time, value: point.prValue })));
@@ -201,6 +194,7 @@ export function renderMarketChart(container, snapshot, range = "6M") {
     color: "#b64f36",
     lineWidth: 1,
     priceLineVisible: false,
+    lastValueVisible: false,
     title: "SMA1"
   });
   smaSeries.setData(momentumHistory.map((point) => ({ time: point.time, value: point.sma1 })));
