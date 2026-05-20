@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node scripts/write_version.mjs",
     "dev": "python3 -m http.server 5173",
-    "check": "node --check src/main.js && node --check src/services/appVersionProvider.js && node --check src/services/memberProfileRepository.js && node --check src/services/memberProfileStore.js && node --check scripts/write_version.mjs",
+    "check": "node --check src/main.js && node --check src/services/appConfigProvider.js && node --check src/services/appVersionProvider.js && node --check src/services/memberProfileRepository.js && node --check src/services/memberProfileStore.js && node --check src/services/supabaseMemberProfileStore.js && node --check scripts/write_version.mjs",
     "fetch:data": "python3 -B jobs/fetch_yahoo_snapshots.py"
   },
   "dependencies": {},
