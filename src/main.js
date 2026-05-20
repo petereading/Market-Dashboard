@@ -2,6 +2,7 @@ import { canFollowSymbol, entitlements, getTierMessage } from "./domain/entitlem
 import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
 import { renderMarketChart } from "./services/chartRenderer.js?v=labels-20260520";
 import { marketDataProvider } from "./services/marketDataProvider.js";
+import { memberProfileStore } from "./services/memberProfileStore.js";
 
 const defaultFollowedSymbols = ["^HSI", "^GSPC", "BTC-USD"];
 
@@ -63,6 +64,37 @@ function getEmailSnapshots() {
     .filter(Boolean);
 }
 
+function persistProfile() {
+  memberProfileStore.save({
+    tier: state.tier,
+    selectedSymbol: state.selectedSymbol,
+    followedSymbols: state.followedSymbols,
+    includeSymbolDetails: state.includeSymbolDetails
+  });
+}
+
+function clampFollowedSymbols(tier, symbols) {
+  const maxFollowedSymbols = entitlements[tier].maxFollowedSymbols;
+  if (tier === "visitor") {
+    return [];
+  }
+
+  return [...new Set(symbols)].slice(0, maxFollowedSymbols);
+}
+
+function applyStoredProfile(profile) {
+  const tier = entitlements[profile.tier] ? profile.tier : "visitor";
+  state.tier = tier;
+  const visibleSymbols = new Set(getVisibleSnapshots().map((snapshot) => snapshot.definition.symbol));
+  const fallbackSymbol = state.snapshots[0]?.definition.symbol;
+
+  state.followedSymbols = clampFollowedSymbols(tier, profile.followedSymbols ?? []);
+  state.includeSymbolDetails = profile.includeSymbolDetails !== false;
+  state.selectedSymbol = visibleSymbols.has(profile.selectedSymbol)
+    ? profile.selectedSymbol
+    : visibleSymbols.values().next().value ?? fallbackSymbol;
+}
+
 function handleTierChange(tier) {
   state.tier = tier;
   state.followedSymbols = tier === "visitor" ? [] : defaultFollowedSymbols.slice(0, entitlements[tier].maxFollowedSymbols);
@@ -72,6 +104,7 @@ function handleTierChange(tier) {
     state.selectedSymbol = visible[0]?.definition.symbol ?? state.snapshots[0]?.definition.symbol;
   }
 
+  persistProfile();
   render();
 }
 
@@ -80,12 +113,14 @@ function handleFollowToggle(symbol) {
 
   if (isFollowing) {
     state.followedSymbols = state.followedSymbols.filter((item) => item !== symbol);
+    persistProfile();
     render();
     return;
   }
 
   if (canFollowSymbol(state.tier, state.followedSymbols.length)) {
     state.followedSymbols = [...state.followedSymbols, symbol];
+    persistProfile();
   }
 
   render();
@@ -289,6 +324,7 @@ function bindEvents() {
       const symbol = button.dataset.symbol;
       if (symbol) {
         state.selectedSymbol = symbol;
+        persistProfile();
         render();
       }
     });
@@ -296,6 +332,7 @@ function bindEvents() {
 
   document.querySelector("[data-include-details]")?.addEventListener("change", (event) => {
     state.includeSymbolDetails = event.target.checked;
+    persistProfile();
     render();
   });
 
@@ -330,6 +367,7 @@ async function boot() {
   const payload = await marketDataProvider.load();
   state.snapshots = payload.snapshots;
   state.snapshotMeta = payload.meta;
+  applyStoredProfile(memberProfileStore.load());
   render();
 }
 
