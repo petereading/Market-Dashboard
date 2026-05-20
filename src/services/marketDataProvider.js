@@ -1,6 +1,6 @@
 import { mockSnapshots } from "../data/mockSnapshots.js";
 
-const latestSnapshotUrl = "/data/latest.json";
+const latestSnapshotUrls = ["/data/latest.json", "/public/data/latest.json"];
 
 function isSnapshotPayload(value) {
   return Array.isArray(value?.snapshots) && value.snapshots.length > 0;
@@ -9,24 +9,26 @@ function isSnapshotPayload(value) {
 export class StaticJsonMarketDataProvider {
   async load() {
     try {
-      const response = await fetch(latestSnapshotUrl, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`Snapshot fetch failed: ${response.status}`);
-      }
-
-      const payload = await response.json();
-      if (!isSnapshotPayload(payload)) {
-        throw new Error("Snapshot payload is empty or invalid");
-      }
-
-      return {
-        snapshots: payload.snapshots,
-        meta: {
-          generatedAt: payload.generatedAt ?? "unknown",
-          source: payload.source ?? "unknown",
-          indicatorEngine: payload.indicatorEngine ?? "unknown"
+      for (const latestSnapshotUrl of latestSnapshotUrls) {
+        const response = await fetch(latestSnapshotUrl, { cache: "no-store" });
+        if (!response.ok) {
+          continue;
         }
-      };
+
+        const payload = await response.json();
+        if (isSnapshotPayload(payload)) {
+          return {
+            snapshots: payload.snapshots,
+            meta: {
+              generatedAt: payload.generatedAt ?? "unknown",
+              source: payload.source ?? "unknown",
+              indicatorEngine: payload.indicatorEngine ?? "unknown"
+            }
+          };
+        }
+      }
+
+      throw new Error("No valid snapshot payload found");
     } catch (error) {
       console.warn("Using mock market snapshots.", error);
       return {
