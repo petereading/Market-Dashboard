@@ -30,6 +30,9 @@ INDICATOR_ENGINE = "prototype-yahoo-v0"
 YAHOO_HOSTS = ("query1.finance.yahoo.com", "query2.finance.yahoo.com")
 COOKIE_JAR = http.cookiejar.CookieJar()
 OPENER = build_opener(HTTPCookieProcessor(COOKIE_JAR))
+YAHOO_RANGE = "5y"
+DISPLAY_CANDLES = 520
+YEAR_DIVIDER_LENGTH = 252
 
 
 @dataclass(frozen=True)
@@ -69,14 +72,7 @@ STAGE_1_SYMBOLS = [
 ]
 
 
-def yahoo_headers() -> dict[str, str]:
-    return {
-        "User-Agent": "MarketDashboard/0.1 (+private research MVP)",
-        "Accept": "application/json",
-    }
-
-
-def fetch_chart(symbol: str, range_: str = "1y", interval: str = "1d") -> dict[str, Any]:
+def fetch_chart(symbol: str, range_: str = YAHOO_RANGE, interval: str = "1d") -> dict[str, Any]:
     encoded = quote(symbol, safe="")
     last_error: Exception | None = None
 
@@ -99,6 +95,13 @@ def fetch_chart(symbol: str, range_: str = "1y", interval: str = "1d") -> dict[s
     if last_error:
         raise last_error
     raise ValueError(f"Unable to fetch chart for {symbol}")
+
+
+def yahoo_headers() -> dict[str, str]:
+    return {
+        "User-Agent": "MarketDashboard/0.1 (+private research MVP)",
+        "Accept": "application/json",
+    }
 
 
 def parse_prices(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -131,11 +134,13 @@ def parse_prices(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if len(prices) < 40:
         raise ValueError(f"Not enough daily candles: {len(prices)}")
 
-    return prices[-180:]
+    return prices
 
 
 def average(values: list[float]) -> float:
-    return sum(values) / len(values) if values else 0.0
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
 
 
 def rolling_pr_values(closes: list[float], lookback: int = 120) -> list[float]:
@@ -144,7 +149,10 @@ def rolling_pr_values(closes: list[float], lookback: int = 120) -> list[float]:
         window = closes[max(0, index - lookback + 1) : index + 1]
         low = min(window)
         high = max(window)
-        values.append(50.0 if high == low else max(0.0, min(100.0, ((close - low) / (high - low)) * 100)))
+        if high == low:
+            values.append(50.0)
+        else:
+            values.append(max(0.0, min(100.0, ((close - low) / (high - low)) * 100)))
     return values
 
 
@@ -200,8 +208,8 @@ def coach_summary(status: str) -> str:
 
 
 def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
-    prices = parse_prices(fetch_chart(definition.symbol))
-    closes = [point["close"] for point in prices]
+    all_prices = parse_prices(fetch_chart(definition.symbol))
+    closes = [point["close"] for point in all_prices]
     price = closes[-1]
     previous = closes[-2] if len(closes) > 1 else price
     pr_values = rolling_pr_values(closes)
@@ -212,9 +220,19 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
         "week": round(moving_average(closes, 5), 4),
         "month": round(moving_average(closes, 21), 4),
         "quarter": round(moving_average(closes, 63), 4),
-        "year": round(moving_average(closes, 180), 4),
+        "year": round(moving_average(closes, YEAR_DIVIDER_LENGTH), 4),
     }
     status = status_from(price, pr_value, sma1, dividers)
+    display_start = max(0, len(all_prices) - DISPLAY_CANDLES)
+    display_prices = all_prices[display_start:]
+    display_history = [
+        {
+            "date": point["date"],
+            "prValue": round(pr_values[index], 1),
+            "sma1": round(sma1_values[index], 1),
+        }
+        for index, point in enumerate(all_prices[display_start:], start=display_start)
+    ]
 
     return {
         "definition": {
@@ -225,10 +243,10 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
             "publicDemo": definition.public_demo,
             "supportedFromStage": definition.supported_from_stage,
         },
-        "prices": prices,
+        "prices": display_prices,
         "indicator": {
             "symbol": definition.symbol,
-            "asOf": prices[-1]["date"],
+            "asOf": all_prices[-1]["date"],
             "price": round(price, 4),
             "dailyChangePct": round(((price - previous) / previous) * 100, 2) if previous else 0,
             "prValue": pr_value,
@@ -236,18 +254,13 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
             "prMinusSma": round(pr_value - sma1, 1),
             "dividers": dividers,
             "pricePosition": price_position(price, dividers),
-            "distanceToMonthPct": round(((price - dividers["month"]) / dividers["month"]) * 100, 2) if dividers["month"] else 0,
+            "distanceToMonthPct": round(((price - dividers["month"]) / dividers["month"]) * 100, 2)
+            if dividers["month"]
+            else 0,
             "status": status,
             "rank": 0,
             "signal": signal_from(pr_values, sma1, status),
-            "history": [
-                {
-                    "date": point["date"],
-                    "prValue": round(pr_values[index], 1),
-                    "sma1": round(sma1_values[index], 1),
-                }
-                for index, point in enumerate(prices)
-            ],
+            "history": display_history,
         },
         "coachSummary": coach_summary(status),
         "newsSummary": "Stage 1 暫未接入新聞來源；正式版本會按 symbol 生成週度新聞重點。",
@@ -280,11 +293,17 @@ def main() -> int:
     parser.add_argument("--symbols", help="Comma-separated subset for smoke tests, e.g. AAPL,^HSI.")
     args = parser.parse_args()
 
-    requested_symbols = {value.strip() for value in args.symbols.split(",") if value.strip()} if args.symbols else None
-    definitions = [definition for definition in STAGE_1_SYMBOLS if requested_symbols is None or definition.symbol in requested_symbols]
-
     snapshots: list[dict[str, Any]] = []
     failed: list[dict[str, str]] = []
+
+    requested_symbols = {
+        value.strip() for value in args.symbols.split(",") if value.strip()
+    } if args.symbols else None
+    definitions = [
+        definition
+        for definition in STAGE_1_SYMBOLS
+        if requested_symbols is None or definition.symbol in requested_symbols
+    ]
 
     for definition in definitions:
         try:
