@@ -286,6 +286,10 @@ button {
   display: inline-block;
 }
 
+.legend-dot.momentum {
+  background: #245c58;
+}
+
 .legend-dot.week {
   background: #d946ef;
 }
