@@ -8,6 +8,7 @@ Stage 1 is an internal MVP that proves the product loop before Supabase, Patreon
 - Curated Stage 1 market universe
 - Watchlist limits
 - Browser-persisted member profile placeholder
+- Visible build/version badge from `public/version.json`
 - Chart view with public indicator overlays
 - Daily snapshot data shape
 - Weekly narrative email preview
@@ -26,6 +27,16 @@ http://localhost:5173
 ```
 
 No build step is required for Stage 1.
+
+## Build Version
+
+The sidebar displays the app version from:
+
+```text
+public/version.json
+```
+
+For now this is a committed Stage 1 build label. Later, Cloudflare Pages can generate the same file from `CF_PAGES_COMMIT_SHA` so the badge reflects the deployed commit automatically.
 
 ## Data Job
 
