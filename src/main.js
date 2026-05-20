@@ -206,12 +206,11 @@ function renderMain() {
             <span><i class="legend-dot quarter"></i>季分界</span>
             <span><i class="legend-dot year"></i>年分界</span>
           </div>
+          <div class="chart-meta">最後更新日期：${snapshot.indicator.asOf}</div>
 
-          <div class="metric-grid">
+          <div class="metric-grid summary-metrics">
             <div class="metric"><span>現價</span><strong>${formatNumber(snapshot.indicator.price)}</strong></div>
-            <div class="metric"><span>PR 值</span><strong>${snapshot.indicator.prValue}</strong></div>
-            <div class="metric"><span>SMA1</span><strong>${snapshot.indicator.sma1}</strong></div>
-            <div class="metric"><span>月線距離</span><strong>${snapshot.indicator.distanceToMonthPct}%</strong></div>
+            <div class="metric"><span>動能指數</span><strong>${snapshot.indicator.prValue}</strong></div>
           </div>
 
           <div class="metric-grid">
