@@ -76,6 +76,21 @@ python3 -B jobs/fetch_yahoo_snapshots.py
 
 The current indicator engine is labelled `prototype-yahoo-v0`. It produces the public output field shape from real candles, but it is not the final proprietary indicator engine.
 
+## Weekly Report Artifact
+
+Build a reusable JSON and text digest for future email/PDF generation:
+
+```bash
+npm run report:weekly -- --tier paid --include-symbol-details --symbols ^HSI,^GSPC,BTC-USD
+```
+
+The script reads `public/data/latest.json` when available and falls back to the bundled mock snapshots for local previews. It writes:
+
+```text
+public/reports/latest-weekly-report.json
+public/reports/latest-weekly-report.txt
+```
+
 ## Deployment Target
 
 Cloudflare Pages. Use `npm run build` as the build command so the deployed app writes a fresh version badge. Custom domain planned as:
