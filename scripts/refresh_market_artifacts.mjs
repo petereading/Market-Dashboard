@@ -8,7 +8,8 @@ function parseArgs(argv) {
     includeSymbolDetails: false,
     reportSymbols: "",
     skipFetch: false,
-    skipReport: false
+    skipReport: false,
+    skipEmail: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -31,6 +32,8 @@ function parseArgs(argv) {
       args.skipFetch = true;
     } else if (arg === "--skip-report") {
       args.skipReport = true;
+    } else if (arg === "--skip-email") {
+      args.skipEmail = true;
     }
   }
 
@@ -78,6 +81,10 @@ async function main() {
     }
 
     await run("node", reportArgs);
+  }
+
+  if (!args.skipEmail) {
+    await run("node", ["scripts/build_email_preview.mjs"]);
   }
 }
 
