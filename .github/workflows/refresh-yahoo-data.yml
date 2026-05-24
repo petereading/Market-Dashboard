@@ -11,6 +11,18 @@ on:
         description: "Seconds to sleep between Yahoo requests"
         required: false
         default: "0.25"
+      report_tier:
+        description: "Weekly report tier: free or paid"
+        required: false
+        default: "free"
+      include_symbol_details:
+        description: "Set to true to include individual symbol summaries in the report"
+        required: false
+        default: "false"
+      report_symbols:
+        description: "Comma-separated report symbols, or empty for all fetched symbols"
+        required: false
+        default: ""
   schedule:
     # 07:30 HKT Tuesday-Saturday, after the US close has settled.
     - cron: "30 23 * * 1-5"
@@ -24,6 +36,9 @@ jobs:
     env:
       DASHBOARD_SYMBOLS: ${{ github.event.inputs.symbols || '' }}
       DASHBOARD_SLEEP: ${{ github.event.inputs.sleep || '0.25' }}
+      REPORT_TIER: ${{ github.event.inputs.report_tier || 'free' }}
+      INCLUDE_SYMBOL_DETAILS: ${{ github.event.inputs.include_symbol_details || 'false' }}
+      REPORT_SYMBOLS: ${{ github.event.inputs.report_symbols || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -35,24 +50,30 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Fetch Yahoo dashboard data
+      - name: Refresh dashboard artifacts
         run: |
+          args=(--sleep "$DASHBOARD_SLEEP" --tier "$REPORT_TIER")
           if [ -n "$DASHBOARD_SYMBOLS" ]; then
-            python jobs/fetch_yahoo_snapshots.py --symbols "$DASHBOARD_SYMBOLS" --sleep "$DASHBOARD_SLEEP"
-          else
-            python jobs/fetch_yahoo_snapshots.py --sleep "$DASHBOARD_SLEEP"
+            args+=(--symbols "$DASHBOARD_SYMBOLS")
           fi
+          if [ "$INCLUDE_SYMBOL_DETAILS" = "true" ]; then
+            args+=(--include-symbol-details)
+          fi
+          if [ -n "$REPORT_SYMBOLS" ]; then
+            args+=(--report-symbols "$REPORT_SYMBOLS")
+          fi
+          node scripts/refresh_market_artifacts.mjs "${args[@]}"
 
       - name: Commit refreshed artifact
         run: |
-          if [ -z "$(git status --porcelain -- public/data/latest.json)" ]; then
-            echo "No data changes to commit."
+          if [ -z "$(git status --porcelain -- public/data/latest.json public/reports)" ]; then
+            echo "No artifact changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/data/latest.json
-          git commit -m "Refresh Yahoo dashboard data"
+          git add public/data/latest.json public/reports
+          git commit -m "Refresh dashboard artifacts"
           git pull --rebase origin main
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:main; then
