@@ -91,6 +91,20 @@ public/reports/latest-weekly-report.json
 public/reports/latest-weekly-report.txt
 ```
 
+To run the Stage 1 artifact pipeline locally, fetch data and then generate the report:
+
+```bash
+npm run refresh:artifacts -- --tier free
+```
+
+Useful options:
+
+```bash
+npm run refresh:artifacts -- --symbols ^HSI,^GSPC,BTC-USD --tier paid --include-symbol-details --report-symbols ^HSI,^GSPC,BTC-USD
+```
+
+The GitHub Action `.github/workflows/refresh-yahoo-data.yml` uses this same wrapper and commits both the Yahoo snapshot and report artifacts.
+
 ## Deployment Target
 
 Cloudflare Pages. Use `npm run build` as the build command so the deployed app writes a fresh version badge. Custom domain planned as:
