@@ -91,6 +91,19 @@ public/reports/latest-weekly-report.json
 public/reports/latest-weekly-report.txt
 ```
 
+Build a previewable email HTML/text pair from the latest weekly report:
+
+```bash
+npm run email:preview
+```
+
+It writes:
+
+```text
+public/reports/latest-weekly-email.html
+public/reports/latest-weekly-email.txt
+```
+
 To run the Stage 1 artifact pipeline locally, fetch data and then generate the report:
 
 ```bash
@@ -103,7 +116,7 @@ Useful options:
 npm run refresh:artifacts -- --symbols ^HSI,^GSPC,BTC-USD --tier paid --include-symbol-details --report-symbols ^HSI,^GSPC,BTC-USD
 ```
 
-The GitHub Action `.github/workflows/refresh-yahoo-data.yml` uses this same wrapper and commits both the Yahoo snapshot and report artifacts.
+The GitHub Action `.github/workflows/refresh-yahoo-data.yml` uses this same wrapper and commits the Yahoo snapshot, report artifacts, and email preview artifacts.
 
 ## Deployment Target
 
