@@ -73,6 +73,10 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const payload = await loadSnapshots(args.input);
   const snapshots = filterSnapshots(payload.snapshots, args.symbols);
+  if (snapshots.length === 0) {
+    throw new Error("No snapshots matched the requested weekly report symbols.");
+  }
+
   const report = buildWeeklyReport(snapshots, {
     tier: args.tier,
     includeSymbolDetails: args.includeSymbolDetails,
