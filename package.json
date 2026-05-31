@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node scripts/write_version.mjs",
     "dev": "python3 -m http.server 5173",
-    "check": "node --check src/main.js && node --check src/domain/weeklyDigest.js && node --check src/domain/weeklyReport.js && node --check src/services/appConfigProvider.js && node --check src/services/appVersionProvider.js && node --check src/services/memberProfileRepository.js && node --check src/services/memberProfileStore.js && node --check src/services/supabaseMemberProfileStore.js && node --check scripts/build_email_preview.mjs && node --check scripts/build_weekly_report.mjs && node --check scripts/refresh_market_artifacts.mjs && node --check scripts/write_version.mjs",
+    "check": "node --check src/main.js && node --check src/reportPreview.js && node --check src/domain/weeklyDigest.js && node --check src/domain/weeklyReport.js && node --check src/services/appConfigProvider.js && node --check src/services/appVersionProvider.js && node --check src/services/memberProfileRepository.js && node --check src/services/memberProfileStore.js && node --check src/services/supabaseMemberProfileStore.js && node --check scripts/build_email_preview.mjs && node --check scripts/build_weekly_report.mjs && node --check scripts/refresh_market_artifacts.mjs && node --check scripts/write_version.mjs",
     "email:preview": "node scripts/build_email_preview.mjs",
     "report:weekly": "node scripts/build_weekly_report.mjs",
     "refresh:artifacts": "node scripts/refresh_market_artifacts.mjs",
