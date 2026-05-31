@@ -1,6 +1,6 @@
 import { canFollowSymbol, entitlements, getTierMessage } from "./domain/entitlements.js";
 import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
-import { renderMarketChart } from "./services/chartRenderer.js?v=multi-ma-20260531";
+import { renderMarketChart } from "./services/chartRenderer.js?v=custom-ma-20260531";
 import { loadAppVersion } from "./services/appVersionProvider.js";
 import { marketDataProvider } from "./services/marketDataProvider.js";
 import { memberProfileRepository } from "./services/memberProfileRepository.js";
@@ -16,7 +16,10 @@ const state = {
   chartSettings: {
     timeframe: "daily",
     overlays: {
-      multiMa: false
+      multiMa: {
+        enabled: false,
+        periods: [20, 50, 100, 150, 200]
+      }
     },
     lowerPanes: {
       pr: true,
@@ -31,6 +34,9 @@ const state = {
 };
 
 const maxLowerPanes = 2;
+const maxMaLines = 5;
+const maColors = ["#0f766e", "#7c3aed", "#db2777", "#ca8a04", "#64748b"];
+let maInputRenderTimer = null;
 
 const app = document.querySelector("#app");
 
@@ -160,16 +166,64 @@ function getActiveLowerPaneCount() {
   return Object.values(state.chartSettings.lowerPanes).filter(Boolean).length;
 }
 
+function getMultiMaSettings() {
+  const multiMa = state.chartSettings.overlays.multiMa;
+  if (typeof multiMa === "boolean") {
+    return {
+      enabled: multiMa,
+      periods: [20, 50, 100, 150, 200]
+    };
+  }
+
+  return {
+    enabled: multiMa.enabled === true,
+    periods: sanitizeMaPeriods(multiMa.periods)
+  };
+}
+
+function sanitizeMaPeriods(periods) {
+  const values = Array.isArray(periods) ? periods : [];
+  const unique = [];
+
+  values.forEach((period) => {
+    const value = Math.round(Number(period));
+    if (Number.isFinite(value) && value >= 2 && value <= 400 && !unique.includes(value)) {
+      unique.push(value);
+    }
+  });
+
+  return unique.slice(0, maxMaLines);
+}
+
+function setMaPeriods(periods) {
+  state.chartSettings.overlays.multiMa = {
+    ...getMultiMaSettings(),
+    periods: sanitizeMaPeriods(periods)
+  };
+}
+
+function applyMaInputs(inputs) {
+  const periods = [...inputs].map((input) => input.value);
+  const sanitized = sanitizeMaPeriods(periods);
+  if (sanitized.length !== periods.length) {
+    return false;
+  }
+
+  setMaPeriods(periods);
+  return true;
+}
+
 function renderChartSettings() {
   const lowerPaneCount = getActiveLowerPaneCount();
+  const multiMa = getMultiMaSettings();
   const controls = [
     {
       key: "multiMa",
       type: "overlay",
       label: "多重 MA",
-      enabled: state.chartSettings.overlays.multiMa,
+      enabled: multiMa.enabled,
       supported: true,
-      note: "5線組"
+      note: `${multiMa.periods.length}線組`
     },
     {
       key: "pr",
@@ -229,12 +283,51 @@ function renderChartSettings() {
           .join("")}
       </div>
     </div>
+    ${multiMa.enabled ? renderMaPeriodSettings(multiMa.periods) : ""}
+  `;
+}
+
+function renderMaPeriodSettings(periods) {
+  return `
+    <div class="ma-settings" aria-label="MA period settings">
+      <span class="ma-settings-label">MA</span>
+      ${periods
+        .map(
+          (period, index) => `
+            <label class="ma-period-control">
+              <span>MA${index + 1}</span>
+              <input type="number" min="2" max="400" step="1" value="${period}" data-ma-period="${index}" />
+              ${
+                periods.length > 1
+                  ? `<button type="button" class="ma-remove-button" data-ma-remove="${index}" aria-label="Remove MA ${period}">−</button>`
+                  : ""
+              }
+            </label>
+          `
+        )
+        .join("")}
+      ${
+        periods.length < maxMaLines
+          ? `<button type="button" class="ma-add-button" data-ma-add>+</button>`
+          : ""
+      }
+    </div>
   `;
 }
 
 function handleIndicatorToggle(type, key) {
   if (type === "overlay") {
     if (!(key in state.chartSettings.overlays)) {
+      return;
+    }
+
+    if (key === "multiMa") {
+      const multiMa = getMultiMaSettings();
+      state.chartSettings.overlays.multiMa = {
+        ...multiMa,
+        enabled: !multiMa.enabled
+      };
+      render();
       return;
     }
 
@@ -362,7 +455,7 @@ function renderMain() {
   const snapshot = getSelectedSnapshot();
   const emailSnapshots = getEmailSnapshots();
   const entitlement = entitlements[state.tier];
-  const hasMultiMa = state.chartSettings.overlays.multiMa;
+  const multiMa = getMultiMaSettings();
   const digest =
     state.tier === "visitor"
       ? "訪客不會收到 email digest。登入 Patreon 免費會員後，可建立 3 個 symbol 的追蹤清單並收到每週總覽。"
@@ -405,16 +498,16 @@ function renderMain() {
             <div class="chart" data-chart></div>
           </div>
           <div class="divider-legend" aria-label="Divider legend">
-            <span><i class="legend-dot momentum"></i>動能指數</span>
+            ${state.chartSettings.lowerPanes.pr ? `<span><i class="legend-dot momentum"></i>動能指數</span>` : ""}
             ${
-              hasMultiMa
-                ? `
-                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #0f766e;"></i>MA20</span>
-                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #7c3aed;"></i>MA50</span>
-                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #db2777;"></i>MA100</span>
-                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #ca8a04;"></i>MA150</span>
-                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #64748b;"></i>MA200</span>
-                `
+              multiMa.enabled
+                ? multiMa.periods
+                    .map(
+                      (period, index) => `
+                        <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid ${maColors[index]};"></i>MA${period}</span>
+                      `
+                    )
+                    .join("")
                 : ""
             }
             <span><i class="legend-dot week"></i>週分界</span>
@@ -558,6 +651,46 @@ function bindEvents() {
 
       handleIndicatorToggle(button.dataset.indicatorType, button.dataset.indicatorKey);
     });
+  });
+
+  document.querySelectorAll("[data-ma-period]").forEach((input) => {
+    input.addEventListener("input", () => {
+      if (maInputRenderTimer) {
+        window.clearTimeout(maInputRenderTimer);
+      }
+
+      maInputRenderTimer = window.setTimeout(() => {
+        if (applyMaInputs(document.querySelectorAll("[data-ma-period]"))) {
+          render();
+        }
+      }, 350);
+    });
+
+    input.addEventListener("change", () => {
+      if (maInputRenderTimer) {
+        window.clearTimeout(maInputRenderTimer);
+      }
+
+      if (applyMaInputs(document.querySelectorAll("[data-ma-period]"))) {
+        render();
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-ma-remove]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const removeIndex = Number(button.dataset.maRemove);
+      const periods = getMultiMaSettings().periods.filter((_period, index) => index !== removeIndex);
+      setMaPeriods(periods.length > 0 ? periods : [20]);
+      render();
+    });
+  });
+
+  document.querySelector("[data-ma-add]")?.addEventListener("click", () => {
+    const periods = getMultiMaSettings().periods;
+    const nextPeriod = periods.at(-1) ? Math.min(periods.at(-1) + 50, 400) : 20;
+    setMaPeriods([...periods, nextPeriod]);
+    render();
   });
 }
 
