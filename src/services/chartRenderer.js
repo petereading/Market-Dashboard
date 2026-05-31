@@ -5,6 +5,14 @@ const dividerStyles = [
   ["year", "年分界", "#9ca3af"]
 ];
 
+const maStyles = [
+  [20, "MA20", "#0f766e"],
+  [50, "MA50", "#7c3aed"],
+  [100, "MA100", "#db2777"],
+  [150, "MA150", "#ca8a04"],
+  [200, "MA200", "#64748b"]
+];
+
 function getLibrary() {
   return window.LightweightCharts;
 }
@@ -129,8 +137,40 @@ function getDividerSeriesData(snapshot, key) {
   return snapshot.prices.map((point) => ({ time: point.date, value }));
 }
 
+function average(values) {
+  if (!values.length) {
+    return 0;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function getMaSeriesData(snapshot, period) {
+  const source = snapshot.indicator.maHistory?.[String(period)];
+  if (Array.isArray(source) && source.length > 0) {
+    return source
+      .map((point) => ({
+        time: point.date,
+        value: Number(point.value)
+      }))
+      .filter((point) => Number.isFinite(point.value));
+  }
+
+  const closes = snapshot.prices.map((point) => Number(point.close));
+  return snapshot.prices.map((point, index) => {
+    const window = closes.slice(Math.max(0, index - period + 1), index + 1);
+    return {
+      time: point.date,
+      value: average(window)
+    };
+  });
+}
+
 function getChartSettings(settings) {
   return {
+    overlays: {
+      multiMa: settings?.overlays?.multiMa === true
+    },
     lowerPanes: {
       pr: settings?.lowerPanes?.pr !== false
     }
@@ -213,6 +253,18 @@ export function renderMarketChart(container, snapshot, range = "6M", settings = 
     });
     lineSeries.setData(getDividerSeriesData(snapshot, key));
   });
+
+  if (chartSettings.overlays.multiMa) {
+    maStyles.forEach(([period, _label, color]) => {
+      const lineSeries = priceChart.addSeries(LightweightCharts.LineSeries, {
+        color,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false
+      });
+      lineSeries.setData(getMaSeriesData(snapshot, period));
+    });
+  }
 
   const priceCloseByTime = new Map(candleData.map((point) => [point.time, point.close]));
   let momentumHistory = [];
