@@ -296,7 +296,7 @@ a {
 
 .chart-section,
 .insight-section,
-digest-section {
+.digest-section {
   display: grid;
   gap: 16px;
 }
