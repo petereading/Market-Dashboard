@@ -183,6 +183,7 @@ function renderSidebar() {
       <div class="brand">
         <span class="brand-kicker">Math of Stars ${renderVersionBadge()}</span>
         <h1>Market Dashboard</h1>
+        <a href="/reports.html" style="width:fit-content;margin-top:8px;border-radius:6px;padding:7px 10px;background:#e8f0ed;color:#2f7672;font-size:0.82rem;text-decoration:none;">Report Preview</a>
       </div>
 
       <section class="tier-switcher">
