@@ -5,13 +5,7 @@ const dividerStyles = [
   ["year", "年分界", "#9ca3af"]
 ];
 
-const maStyles = [
-  [20, "MA20", "#0f766e"],
-  [50, "MA50", "#7c3aed"],
-  [100, "MA100", "#db2777"],
-  [150, "MA150", "#ca8a04"],
-  [200, "MA200", "#64748b"]
-];
+const maColors = ["#0f766e", "#7c3aed", "#db2777", "#ca8a04", "#64748b"];
 
 function getLibrary() {
   return window.LightweightCharts;
@@ -146,16 +140,6 @@ function average(values) {
 }
 
 function getMaSeriesData(snapshot, period) {
-  const source = snapshot.indicator.maHistory?.[String(period)];
-  if (Array.isArray(source) && source.length > 0) {
-    return source
-      .map((point) => ({
-        time: point.date,
-        value: Number(point.value)
-      }))
-      .filter((point) => Number.isFinite(point.value));
-  }
-
   const closes = snapshot.prices.map((point) => Number(point.close));
   return snapshot.prices.map((point, index) => {
     const window = closes.slice(Math.max(0, index - period + 1), index + 1);
@@ -166,10 +150,35 @@ function getMaSeriesData(snapshot, period) {
   });
 }
 
+function sanitizeMaPeriods(periods) {
+  const values = Array.isArray(periods) ? periods : [];
+  const unique = [];
+
+  values.forEach((period) => {
+    const value = Math.round(Number(period));
+    if (Number.isFinite(value) && value >= 2 && value <= 400 && !unique.includes(value)) {
+      unique.push(value);
+    }
+  });
+
+  return unique.slice(0, 5);
+}
+
 function getChartSettings(settings) {
+  const multiMa =
+    typeof settings?.overlays?.multiMa === "object"
+      ? settings.overlays.multiMa
+      : {
+          enabled: settings?.overlays?.multiMa === true,
+          periods: [20, 50, 100, 150, 200]
+        };
+
   return {
     overlays: {
-      multiMa: settings?.overlays?.multiMa === true
+      multiMa: {
+        enabled: multiMa.enabled === true,
+        periods: sanitizeMaPeriods(multiMa.periods)
+      }
     },
     lowerPanes: {
       pr: settings?.lowerPanes?.pr !== false
@@ -254,10 +263,10 @@ export function renderMarketChart(container, snapshot, range = "6M", settings = 
     lineSeries.setData(getDividerSeriesData(snapshot, key));
   });
 
-  if (chartSettings.overlays.multiMa) {
-    maStyles.forEach(([period, _label, color]) => {
+  if (chartSettings.overlays.multiMa.enabled) {
+    chartSettings.overlays.multiMa.periods.forEach((period, index) => {
       const lineSeries = priceChart.addSeries(LightweightCharts.LineSeries, {
-        color,
+        color: maColors[index] ?? "#64748b",
         lineWidth: 1,
         priceLineVisible: false,
         lastValueVisible: false
