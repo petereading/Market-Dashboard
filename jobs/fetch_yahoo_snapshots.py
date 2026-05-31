@@ -33,7 +33,6 @@ OPENER = build_opener(HTTPCookieProcessor(COOKIE_JAR))
 YAHOO_RANGE = "5y"
 DISPLAY_CANDLES = 520
 YEAR_DIVIDER_LENGTH = 252
-MA_PERIODS = (20, 50, 100, 150, 200)
 
 
 @dataclass(frozen=True)
@@ -251,10 +250,6 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
     previous = closes[-2] if len(closes) > 1 else price
     pr_values = rolling_pr_values(closes)
     sma1_values = rolling_average(pr_values, 10)
-    ma_values = {
-        period: rolling_moving_average(closes, period)
-        for period in MA_PERIODS
-    }
     raw_divider_values = {
         "week": rolling_moving_average(closes, 5),
         "month": rolling_moving_average(closes, 21),
@@ -303,20 +298,6 @@ def build_snapshot(definition: SymbolDefinition) -> dict[str, Any]:
             "prValue": pr_value,
             "sma1": sma1,
             "prMinusSma": round(pr_value - sma1, 1),
-            "movingAverages": {
-                str(period): round(values[-1], 4)
-                for period, values in ma_values.items()
-            },
-            "maHistory": {
-                str(period): [
-                    {
-                        "date": point["date"],
-                        "value": round(values[index], 4),
-                    }
-                    for index, point in enumerate(all_prices[display_start:], start=display_start)
-                ]
-                for period, values in ma_values.items()
-            },
             "dividers": dividers,
             "pricePosition": price_position(price, dividers),
             "distanceToMonthPct": round(((price - dividers["month"]) / dividers["month"]) * 100, 2)
