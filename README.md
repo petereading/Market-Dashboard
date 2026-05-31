@@ -118,6 +118,16 @@ npm run refresh:artifacts -- --symbols ^HSI,^GSPC,BTC-USD --tier paid --include-
 
 The GitHub Action `.github/workflows/refresh-yahoo-data.yml` uses this same wrapper and commits the Yahoo snapshot, report artifacts, and email preview artifacts.
 
+## Report Preview Page
+
+Open the latest generated report and email preview in the browser:
+
+```text
+/reports.html
+```
+
+The page reads `public/reports/latest-weekly-report.json`, links to the JSON/TXT/HTML/TXT artifacts, and embeds the latest email HTML preview.
+
 ## Deployment Target
 
 Cloudflare Pages. Use `npm run build` as the build command so the deployed app writes a fresh version badge. Custom domain planned as:
