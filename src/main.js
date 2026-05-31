@@ -1,6 +1,6 @@
 import { canFollowSymbol, entitlements, getTierMessage } from "./domain/entitlements.js";
 import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
-import { renderMarketChart } from "./services/chartRenderer.js?v=labels-20260520";
+import { renderMarketChart } from "./services/chartRenderer.js?v=panes-20260531";
 import { loadAppVersion } from "./services/appVersionProvider.js";
 import { marketDataProvider } from "./services/marketDataProvider.js";
 import { memberProfileRepository } from "./services/memberProfileRepository.js";
@@ -13,11 +13,24 @@ const state = {
   followedSymbols: [],
   query: "",
   chartRange: "6M",
+  chartSettings: {
+    timeframe: "daily",
+    overlays: {
+      multiMa: false
+    },
+    lowerPanes: {
+      pr: true,
+      rsi: false,
+      macd: false
+    }
+  },
   includeSymbolDetails: true,
   snapshots: [],
   snapshotMeta: null,
   appVersion: null
 };
+
+const maxLowerPanes = 2;
 
 const app = document.querySelector("#app");
 
@@ -141,6 +154,100 @@ function handleFollowToggle(symbol) {
 function renderVersionBadge() {
   const label = state.appVersion?.label ?? "local";
   return `<span class="version-badge" title="Build ${state.appVersion?.buildId ?? label}">v ${label}</span>`;
+}
+
+function getActiveLowerPaneCount() {
+  return Object.values(state.chartSettings.lowerPanes).filter(Boolean).length;
+}
+
+function renderChartSettings() {
+  const lowerPaneCount = getActiveLowerPaneCount();
+  const controls = [
+    {
+      key: "multiMa",
+      type: "overlay",
+      label: "多重 MA",
+      enabled: state.chartSettings.overlays.multiMa,
+      supported: false,
+      note: "待接入"
+    },
+    {
+      key: "pr",
+      type: "lower-pane",
+      label: "動能指數",
+      enabled: state.chartSettings.lowerPanes.pr,
+      supported: true,
+      note: "下方面板"
+    },
+    {
+      key: "rsi",
+      type: "lower-pane",
+      label: "RSI",
+      enabled: state.chartSettings.lowerPanes.rsi,
+      supported: false,
+      note: "待接入"
+    },
+    {
+      key: "macd",
+      type: "lower-pane",
+      label: "MACD",
+      enabled: state.chartSettings.lowerPanes.macd,
+      supported: false,
+      note: "待接入"
+    }
+  ];
+
+  return `
+    <div class="chart-settings" aria-label="Chart indicator settings">
+      <div class="timeframe-controls" aria-label="Chart timeframe">
+        <button class="timeframe-button active" type="button">日線</button>
+        <button class="timeframe-button" type="button" disabled title="週線需要獨立重新計算指標">週線</button>
+      </div>
+      <div class="indicator-controls" aria-label="Chart indicators">
+        ${controls
+          .map((control) => {
+            const blockedByPaneLimit =
+              control.supported &&
+              control.type === "lower-pane" &&
+              !control.enabled &&
+              lowerPaneCount >= maxLowerPanes;
+
+            return `
+              <button
+                class="indicator-button ${control.enabled ? "active" : ""}"
+                type="button"
+                data-indicator-type="${control.type}"
+                data-indicator-key="${control.key}"
+                ${control.supported && !blockedByPaneLimit ? "" : "disabled"}
+                title="${blockedByPaneLimit ? `最多同時顯示 ${maxLowerPanes} 個下方面板` : control.note}"
+              >
+                <span>${control.label}</span>
+                <small>${control.note}</small>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function handleIndicatorToggle(type, key) {
+  if (type !== "lower-pane") {
+    return;
+  }
+
+  if (!(key in state.chartSettings.lowerPanes)) {
+    return;
+  }
+
+  const isActive = state.chartSettings.lowerPanes[key];
+  if (!isActive && getActiveLowerPaneCount() >= maxLowerPanes) {
+    return;
+  }
+
+  state.chartSettings.lowerPanes[key] = !isActive;
+  render();
 }
 
 function renderFollowedList(entitlement) {
@@ -282,6 +389,7 @@ function renderMain() {
                 .join("")}
             </div>
           </div>
+          ${renderChartSettings()}
           <div class="chart-wrap">
             <div class="chart" data-chart></div>
           </div>
@@ -419,6 +527,16 @@ function bindEvents() {
       }
     });
   });
+
+  document.querySelectorAll("[data-indicator-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.disabled) {
+        return;
+      }
+
+      handleIndicatorToggle(button.dataset.indicatorType, button.dataset.indicatorKey);
+    });
+  });
 }
 
 function render() {
@@ -433,7 +551,7 @@ function render() {
 
   const chart = document.querySelector("[data-chart]");
   if (chart) {
-    renderMarketChart(chart, getSelectedSnapshot(), state.chartRange);
+    renderMarketChart(chart, getSelectedSnapshot(), state.chartRange, state.chartSettings);
   }
 }
 
