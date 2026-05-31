@@ -296,7 +296,7 @@ a {
 
 .chart-section,
 .insight-section,
-.digest-section {
+digest-section {
   display: grid;
   gap: 16px;
 }
@@ -372,6 +372,57 @@ a {
   opacity: 0.72;
 }
 
+.ma-settings {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: -8px;
+  padding: 8px;
+  border: 1px solid #dfd8ca;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.ma-settings-label {
+  color: #69726f;
+  font-size: 0.78rem;
+}
+
+.ma-period-control {
+  display: inline-grid;
+  grid-template-columns: auto 54px auto;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  border-radius: 6px;
+  background: #f7f4ee;
+  padding: 4px 5px 4px 8px;
+  color: #52605d;
+  font-size: 0.72rem;
+}
+
+.ma-period-control input {
+  width: 54px;
+  height: 26px;
+  border: 1px solid #dfd8ca;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #182025;
+  padding: 0 5px;
+}
+
+.ma-remove-button,
+.ma-add-button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: #e8f0ed;
+  color: #2f7672;
+}
+
 .chart-legend,
 .range-controls,
 .divider-legend {
@@ -436,6 +487,33 @@ a {
   height: 9px;
   border-radius: 999px;
   display: inline-block;
+}
+
+.legend-line {
+  width: 18px;
+  height: 0;
+  display: inline-block;
+  border-top: 2px solid currentColor;
+}
+
+.legend-line.ma20 {
+  color: #0f766e;
+}
+
+.legend-line.ma50 {
+  color: #7c3aed;
+}
+
+.legend-line.ma100 {
+  color: #db2777;
+}
+
+.legend-line.ma150 {
+  color: #ca8a04;
+}
+
+.legend-line.ma200 {
+  color: #64748b;
 }
 
 .legend-dot.momentum {
