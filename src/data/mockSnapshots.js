@@ -27,7 +27,6 @@ const basePrices = {
 };
 
 const statusCycle = ["強勢", "改善中", "中性", "轉弱", "弱勢"];
-const maPeriods = [20, 50, 100, 150, 200];
 
 function createPriceSeries(symbol, base) {
   const seed = Array.from(symbol).reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -81,32 +80,10 @@ function createIndicatorHistory(prices) {
   });
 }
 
-function average(values) {
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function createMaHistory(prices) {
-  const closes = prices.map((point) => Number(point.close));
-
-  return Object.fromEntries(
-    maPeriods.map((period) => [
-      String(period),
-      prices.map((point, index) => {
-        const window = closes.slice(Math.max(0, index - period + 1), index + 1);
-        return {
-          date: point.date,
-          value: Number(average(window).toFixed(4))
-        };
-      })
-    ])
-  );
-}
-
 export const mockSnapshots = stage1Symbols.map((definition, index) => {
   const base = basePrices[definition.symbol] ?? 100;
   const prices = createPriceSeries(definition.symbol, base);
   const history = createIndicatorHistory(prices);
-  const maHistory = createMaHistory(prices);
   const price = prices.at(-1)?.close ?? base;
   const monthDivider = Number((price * (0.95 + (index % 5) * 0.015)).toFixed(base > 100 ? 2 : 4));
   const prValue = 42 + ((index * 7) % 51);
@@ -124,10 +101,6 @@ export const mockSnapshots = stage1Symbols.map((definition, index) => {
       prValue,
       sma1,
       prMinusSma: prValue - sma1,
-      movingAverages: Object.fromEntries(
-        maPeriods.map((period) => [String(period), maHistory[String(period)].at(-1)?.value ?? price])
-      ),
-      maHistory,
       dividers: {
         week: Number((price * 0.985).toFixed(base > 100 ? 2 : 4)),
         month: monthDivider,
