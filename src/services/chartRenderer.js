@@ -129,9 +129,44 @@ function getDividerSeriesData(snapshot, key) {
   return snapshot.prices.map((point) => ({ time: point.date, value }));
 }
 
-export function renderMarketChart(container, snapshot, range = "6M") {
+function getChartSettings(settings) {
+  return {
+    lowerPanes: {
+      pr: settings?.lowerPanes?.pr !== false
+    }
+  };
+}
+
+function syncCrosshair(sourceChart, targetChart, targetSeries, dataByTime) {
+  let syncingCrosshair = false;
+
+  sourceChart.subscribeCrosshairMove((param) => {
+    if (syncingCrosshair) {
+      return;
+    }
+
+    if (!param.time) {
+      targetChart.clearCrosshairPosition?.();
+      return;
+    }
+
+    const value = dataByTime.get(param.time);
+    if (!Number.isFinite(value)) {
+      targetChart.clearCrosshairPosition?.();
+      return;
+    }
+
+    syncingCrosshair = true;
+    targetChart.setCrosshairPosition?.(value, param.time, targetSeries);
+    syncingCrosshair = false;
+  });
+}
+
+export function renderMarketChart(container, snapshot, range = "6M", settings = {}) {
   const LightweightCharts = getLibrary();
+  const chartSettings = getChartSettings(settings);
   container.replaceChildren();
+  container.classList.toggle("single-pane", !chartSettings.lowerPanes.pr);
 
   if (!LightweightCharts) {
     const message = document.createElement("div");
@@ -143,9 +178,9 @@ export function renderMarketChart(container, snapshot, range = "6M") {
 
   const pricePane = document.createElement("div");
   pricePane.className = "chart-pane price-pane";
-  const momentumPane = document.createElement("div");
-  momentumPane.className = "chart-pane momentum-pane";
-  container.append(pricePane, momentumPane);
+  container.append(pricePane);
+
+  const lowerCharts = [];
 
   const candleData = toCandleData(snapshot.prices);
   const priceChart = createBaseChart(pricePane, 330, true);
@@ -179,30 +214,48 @@ export function renderMarketChart(container, snapshot, range = "6M") {
     lineSeries.setData(getDividerSeriesData(snapshot, key));
   });
 
-  const momentumHistory = buildPrototypeMomentumHistory(snapshot);
-  const momentumChart = createBaseChart(momentumPane, 150, true);
-  const prSeries = momentumChart.addSeries(LightweightCharts.LineSeries, {
-    color: "#245c58",
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: false
-  });
-  prSeries.setData(momentumHistory.map((point) => ({ time: point.time, value: point.prValue })));
+  const priceCloseByTime = new Map(candleData.map((point) => [point.time, point.close]));
+  let momentumHistory = [];
 
-  const smaSeries = momentumChart.addSeries(LightweightCharts.LineSeries, {
-    color: "#b64f36",
-    lineWidth: 1,
-    priceLineVisible: false,
-    lastValueVisible: false
-  });
-  smaSeries.setData(momentumHistory.map((point) => ({ time: point.time, value: point.sma1 })));
+  if (chartSettings.lowerPanes.pr) {
+    const momentumPane = document.createElement("div");
+    momentumPane.className = "chart-pane momentum-pane";
+    container.append(momentumPane);
 
-  momentumChart.priceScale("right").applyOptions({
-    scaleMargins: { top: 0.15, bottom: 0.15 }
-  });
+    momentumHistory = buildPrototypeMomentumHistory(snapshot);
+    const momentumChart = createBaseChart(momentumPane, 150, true);
+    const prSeries = momentumChart.addSeries(LightweightCharts.LineSeries, {
+      color: "#245c58",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    prSeries.setData(momentumHistory.map((point) => ({ time: point.time, value: point.prValue })));
+
+    const smaSeries = momentumChart.addSeries(LightweightCharts.LineSeries, {
+      color: "#b64f36",
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    smaSeries.setData(momentumHistory.map((point) => ({ time: point.time, value: point.sma1 })));
+
+    momentumChart.priceScale("right").applyOptions({
+      scaleMargins: { top: 0.15, bottom: 0.15 }
+    });
+
+    lowerCharts.push({
+      chart: momentumChart,
+      dataLength: momentumHistory.length
+    });
+
+    const prByTime = new Map(momentumHistory.map((point) => [point.time, point.prValue]));
+    syncCrosshair(priceChart, momentumChart, prSeries, prByTime);
+    syncCrosshair(momentumChart, priceChart, candleSeries, priceCloseByTime);
+  }
 
   applyRange(priceChart, range, candleData.length);
-  applyRange(momentumChart, range, momentumHistory.length);
+  lowerCharts.forEach(({ chart, dataLength }) => applyRange(chart, range, dataLength));
 
   let syncingCharts = false;
 
@@ -212,19 +265,24 @@ export function renderMarketChart(container, snapshot, range = "6M") {
     }
     if (logicalRange) {
       syncingCharts = true;
-      momentumChart.timeScale().setVisibleLogicalRange(logicalRange);
+      lowerCharts.forEach(({ chart }) => chart.timeScale().setVisibleLogicalRange(logicalRange));
       syncingCharts = false;
     }
   });
 
-  momentumChart.timeScale().subscribeVisibleLogicalRangeChange((logicalRange) => {
-    if (syncingCharts) {
-      return;
-    }
-    if (logicalRange) {
-      syncingCharts = true;
-      priceChart.timeScale().setVisibleLogicalRange(logicalRange);
-      syncingCharts = false;
-    }
+  lowerCharts.forEach(({ chart }) => {
+    chart.timeScale().subscribeVisibleLogicalRangeChange((logicalRange) => {
+      if (syncingCharts) {
+        return;
+      }
+      if (logicalRange) {
+        syncingCharts = true;
+        priceChart.timeScale().setVisibleLogicalRange(logicalRange);
+        lowerCharts
+          .filter((item) => item.chart !== chart)
+          .forEach((item) => item.chart.timeScale().setVisibleLogicalRange(logicalRange));
+        syncingCharts = false;
+      }
+    });
   });
 }
