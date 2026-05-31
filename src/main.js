@@ -1,6 +1,6 @@
 import { canFollowSymbol, entitlements, getTierMessage } from "./domain/entitlements.js";
 import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
-import { renderMarketChart } from "./services/chartRenderer.js?v=panes-20260531";
+import { renderMarketChart } from "./services/chartRenderer.js?v=multi-ma-20260531";
 import { loadAppVersion } from "./services/appVersionProvider.js";
 import { marketDataProvider } from "./services/marketDataProvider.js";
 import { memberProfileRepository } from "./services/memberProfileRepository.js";
@@ -168,8 +168,8 @@ function renderChartSettings() {
       type: "overlay",
       label: "多重 MA",
       enabled: state.chartSettings.overlays.multiMa,
-      supported: false,
-      note: "待接入"
+      supported: true,
+      note: "5線組"
     },
     {
       key: "pr",
@@ -233,6 +233,16 @@ function renderChartSettings() {
 }
 
 function handleIndicatorToggle(type, key) {
+  if (type === "overlay") {
+    if (!(key in state.chartSettings.overlays)) {
+      return;
+    }
+
+    state.chartSettings.overlays[key] = !state.chartSettings.overlays[key];
+    render();
+    return;
+  }
+
   if (type !== "lower-pane") {
     return;
   }
@@ -352,6 +362,7 @@ function renderMain() {
   const snapshot = getSelectedSnapshot();
   const emailSnapshots = getEmailSnapshots();
   const entitlement = entitlements[state.tier];
+  const hasMultiMa = state.chartSettings.overlays.multiMa;
   const digest =
     state.tier === "visitor"
       ? "訪客不會收到 email digest。登入 Patreon 免費會員後，可建立 3 個 symbol 的追蹤清單並收到每週總覽。"
@@ -395,6 +406,17 @@ function renderMain() {
           </div>
           <div class="divider-legend" aria-label="Divider legend">
             <span><i class="legend-dot momentum"></i>動能指數</span>
+            ${
+              hasMultiMa
+                ? `
+                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #0f766e;"></i>MA20</span>
+                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #7c3aed;"></i>MA50</span>
+                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #db2777;"></i>MA100</span>
+                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #ca8a04;"></i>MA150</span>
+                  <span><i style="width:18px;height:0;display:inline-block;border-top:2px solid #64748b;"></i>MA200</span>
+                `
+                : ""
+            }
             <span><i class="legend-dot week"></i>週分界</span>
             <span><i class="legend-dot month"></i>月分界</span>
             <span><i class="legend-dot quarter"></i>季分界</span>
