@@ -6,6 +6,8 @@ import { marketDataProvider } from "./services/marketDataProvider.js";
 import { memberProfileRepository } from "./services/memberProfileRepository.js";
 
 const defaultFollowedSymbols = ["^HSI", "^GSPC", "BTC-USD"];
+const chartPreferencesStorageKey = "mathofstars.marketDashboard.chartPreferences.v1";
+const journalStorageKey = "mathofstars.marketDashboard.journalEntries.v1";
 
 const state = {
   tier: "visitor",
@@ -38,6 +40,8 @@ const state = {
     }
   },
   includeSymbolDetails: true,
+  journalEntries: [],
+  journalDraft: "",
   snapshots: [],
   snapshotMeta: null,
   appVersion: null
@@ -55,10 +59,245 @@ if (!app) {
   throw new Error("App root not found");
 }
 
+function canUseLocalStorage() {
+  try {
+    return typeof localStorage !== "undefined";
+  } catch {
+    return false;
+  }
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function formatNumber(value) {
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: Math.abs(value) < 20 ? 4 : 2
   }).format(value);
+}
+
+function getEnabledIndicatorSummary(chartSettings = state.chartSettings) {
+  const enabled = [];
+  const multiMa =
+    typeof chartSettings.overlays?.multiMa === "object"
+      ? {
+          enabled: chartSettings.overlays.multiMa.enabled === true,
+          periods: sanitizeMaPeriods(chartSettings.overlays.multiMa.periods)
+        }
+      : getMultiMaSettings();
+  const rsi = chartSettings.indicators?.rsi ?? {};
+  const macd = chartSettings.indicators?.macd ?? {};
+
+  if (multiMa.enabled) {
+    enabled.push(`MA ${multiMa.periods.join("/")}`);
+  }
+
+  if (chartSettings.lowerPanes?.pr) {
+    enabled.push("動能指數");
+  }
+
+  if (chartSettings.lowerPanes?.rsi) {
+    enabled.push(`RSI ${rsi.period ?? 14}`);
+  }
+
+  if (chartSettings.lowerPanes?.macd) {
+    enabled.push(`MACD ${macd.fast ?? 12}/${macd.slow ?? 26}/${macd.signal ?? 9}`);
+  }
+
+  return enabled.length > 0 ? enabled.join(" · ") : "Price only";
+}
+
+function normalizeChartSettings(settings) {
+  const multiMa =
+    typeof settings?.overlays?.multiMa === "object"
+      ? settings.overlays.multiMa
+      : state.chartSettings.overlays.multiMa;
+  const lowerPanes = settings?.lowerPanes ?? state.chartSettings.lowerPanes;
+  const rsi = settings?.indicators?.rsi ?? state.chartSettings.indicators.rsi;
+  const macd = settings?.indicators?.macd ?? state.chartSettings.indicators.macd;
+  const activeLowerPaneKeys = ["pr", "rsi", "macd"].filter((key) => lowerPanes[key] === true).slice(0, maxLowerPanes);
+  const slow = sanitizeIndicatorPeriod(macd.slow, 26, { min: 3, max: 400 });
+  const fast = Math.min(sanitizeIndicatorPeriod(macd.fast, 12, { min: 2, max: 200 }), slow - 1);
+
+  return {
+    timeframe: settings?.timeframe === "weekly" ? "weekly" : "daily",
+    overlays: {
+      multiMa: {
+        enabled: multiMa.enabled === true,
+        periods: sanitizeMaPeriods(multiMa.periods)
+      }
+    },
+    lowerPanes: {
+      pr: activeLowerPaneKeys.includes("pr"),
+      rsi: activeLowerPaneKeys.includes("rsi"),
+      macd: activeLowerPaneKeys.includes("macd")
+    },
+    indicators: {
+      rsi: {
+        period: sanitizeIndicatorPeriod(rsi.period, 14, { min: 2, max: 100 })
+      },
+      macd: {
+        fast,
+        slow,
+        signal: sanitizeIndicatorPeriod(macd.signal, 9, { min: 2, max: 200 })
+      }
+    }
+  };
+}
+
+function loadChartPreferences() {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  try {
+    const stored = localStorage.getItem(chartPreferencesStorageKey);
+    if (!stored) {
+      return;
+    }
+
+    const preferences = JSON.parse(stored);
+    if (["3M", "6M", "1Y", "All"].includes(preferences.chartRange)) {
+      state.chartRange = preferences.chartRange;
+    }
+    state.chartSettings = normalizeChartSettings(preferences.chartSettings);
+  } catch {
+    state.chartSettings = normalizeChartSettings(state.chartSettings);
+  }
+}
+
+function persistChartPreferences() {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  localStorage.setItem(
+    chartPreferencesStorageKey,
+    JSON.stringify({
+      chartRange: state.chartRange,
+      chartSettings: state.chartSettings
+    })
+  );
+}
+
+function normalizeJournalEntries(entries) {
+  const values = Array.isArray(entries) ? entries : [];
+
+  return values
+    .filter((entry) => typeof entry?.id === "string" && typeof entry?.symbol === "string")
+    .map((entry) => ({
+      id: entry.id,
+      symbol: entry.symbol,
+      displayName: entry.displayName ?? entry.symbol,
+      createdAt: entry.createdAt ?? new Date().toISOString(),
+      dataAsOf: entry.dataAsOf ?? "",
+      chartRange: ["3M", "6M", "1Y", "All"].includes(entry.chartRange) ? entry.chartRange : "6M",
+      chartSettings: normalizeChartSettings(entry.chartSettings),
+      price: Number(entry.price),
+      prValue: Number(entry.prValue),
+      status: entry.status ?? "",
+      signal: entry.signal ?? "",
+      indicatorSummary: entry.indicatorSummary ?? "",
+      notes: entry.notes ?? "",
+      coachSummary: entry.coachSummary ?? "",
+      newsSummary: entry.newsSummary ?? "",
+      fundamentalsSummary: entry.fundamentalsSummary ?? ""
+    }))
+    .slice(0, 30);
+}
+
+function loadJournalEntries() {
+  if (!canUseLocalStorage()) {
+    return [];
+  }
+
+  try {
+    const stored = localStorage.getItem(journalStorageKey);
+    return normalizeJournalEntries(stored ? JSON.parse(stored) : []);
+  } catch {
+    return [];
+  }
+}
+
+function persistJournalEntries() {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  localStorage.setItem(journalStorageKey, JSON.stringify(state.journalEntries));
+}
+
+function buildJournalEntry(snapshot) {
+  return {
+    id: `${Date.now()}-${snapshot.definition.symbol}`,
+    symbol: snapshot.definition.symbol,
+    displayName: snapshot.definition.displayName,
+    createdAt: new Date().toISOString(),
+    dataAsOf: snapshot.indicator.asOf,
+    chartRange: state.chartRange,
+    chartSettings: cloneJson(state.chartSettings),
+    price: snapshot.indicator.price,
+    prValue: snapshot.indicator.prValue,
+    status: snapshot.indicator.status,
+    signal: snapshot.indicator.signal,
+    indicatorSummary: getEnabledIndicatorSummary(),
+    notes: state.journalDraft.trim(),
+    coachSummary: snapshot.coachSummary,
+    newsSummary: snapshot.newsSummary,
+    fundamentalsSummary: snapshot.fundamentalsSummary
+  };
+}
+
+function saveJournalSnapshot() {
+  const snapshot = getSelectedSnapshot();
+  state.journalEntries = normalizeJournalEntries([buildJournalEntry(snapshot), ...state.journalEntries]);
+  state.journalDraft = "";
+  persistJournalEntries();
+  render();
+}
+
+function restoreJournalEntry(entryId) {
+  const entry = state.journalEntries.find((item) => item.id === entryId);
+  if (!entry) {
+    return;
+  }
+
+  state.selectedSymbol = entry.symbol;
+  state.chartRange = entry.chartRange;
+  state.chartSettings = normalizeChartSettings(entry.chartSettings);
+  state.journalDraft = entry.notes;
+  persistProfile();
+  persistChartPreferences();
+  render();
+}
+
+function deleteJournalEntry(entryId) {
+  state.journalEntries = state.journalEntries.filter((entry) => entry.id !== entryId);
+  persistJournalEntries();
+  render();
+}
+
+function formatEntryDate(value) {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit"
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
 }
 
 function getVisibleSnapshots() {
@@ -474,11 +713,13 @@ function handleIndicatorToggle(type, key) {
         ...multiMa,
         enabled: !multiMa.enabled
       };
+      persistChartPreferences();
       render();
       return;
     }
 
     state.chartSettings.overlays[key] = !state.chartSettings.overlays[key];
+    persistChartPreferences();
     render();
     return;
   }
@@ -497,6 +738,7 @@ function handleIndicatorToggle(type, key) {
   }
 
   state.chartSettings.lowerPanes[key] = !isActive;
+  persistChartPreferences();
   render();
 }
 
@@ -598,6 +840,52 @@ function renderSidebar() {
   `;
 }
 
+function renderJournalPanel(snapshot) {
+  const entries = state.journalEntries.slice(0, 6);
+
+  return `
+    <article class="panel journal-panel">
+      <div class="panel-heading">
+        <h3>Investment journal</h3>
+        <span>${state.journalEntries.length} saved</span>
+      </div>
+      <label class="journal-note">
+        <span>Research note</span>
+        <textarea data-journal-note placeholder="Write what you see, what would confirm it, and what would invalidate it.">${escapeHtml(state.journalDraft)}</textarea>
+      </label>
+      <button class="journal-save-button" type="button" data-save-journal>
+        Save ${snapshot.definition.symbol} snapshot
+      </button>
+      ${
+        entries.length > 0
+          ? `
+            <div class="journal-entry-list">
+              ${entries
+                .map(
+                  (entry) => `
+                    <article class="journal-entry">
+                      <div>
+                        <strong>${escapeHtml(entry.symbol)}</strong>
+                        <span>${escapeHtml(entry.displayName)} · ${formatEntryDate(entry.createdAt)}</span>
+                      </div>
+                      <p>${escapeHtml(entry.notes || entry.indicatorSummary)}</p>
+                      <small>${escapeHtml(entry.chartRange)} · ${escapeHtml(entry.indicatorSummary)} · data ${escapeHtml(entry.dataAsOf)}</small>
+                      <div class="journal-entry-actions">
+                        <button type="button" data-restore-journal="${escapeHtml(entry.id)}">Restore</button>
+                        <button type="button" data-delete-journal="${escapeHtml(entry.id)}">Delete</button>
+                      </div>
+                    </article>
+                  `
+                )
+                .join("")}
+            </div>
+          `
+          : `<p class="journal-empty">Saved snapshots will appear here.</p>`
+      }
+    </article>
+  `;
+}
+
 function renderMain() {
   const snapshot = getSelectedSnapshot();
   const emailSnapshots = getEmailSnapshots();
@@ -665,6 +953,9 @@ function renderMain() {
             <span><i class="legend-dot year"></i>年分界</span>
           </div>
           <div class="chart-meta">最後更新日期：${snapshot.indicator.asOf}</div>
+          <div class="chart-actions">
+            <button type="button" data-save-journal>Save snapshot</button>
+          </div>
 
           <div class="metric-grid summary-metrics">
             <div class="metric"><span>現價</span><strong>${formatNumber(snapshot.indicator.price)}</strong></div>
@@ -692,6 +983,7 @@ function renderMain() {
             <h3>Fundamental update</h3>
             <p>${snapshot.fundamentalsSummary}</p>
           </article>
+          ${renderJournalPanel(snapshot)}
           <article class="panel">
             <h3>Weekly email preview</h3>
             ${
@@ -787,6 +1079,7 @@ function bindEvents() {
       const range = button.dataset.range;
       if (range) {
         state.chartRange = range;
+        persistChartPreferences();
         render();
       }
     });
@@ -810,6 +1103,7 @@ function bindEvents() {
 
       maInputRenderTimer = window.setTimeout(() => {
         if (applyMaInputs(document.querySelectorAll("[data-ma-period]"))) {
+          persistChartPreferences();
           render();
         }
       }, 350);
@@ -821,6 +1115,7 @@ function bindEvents() {
       }
 
       if (applyMaInputs(document.querySelectorAll("[data-ma-period]"))) {
+        persistChartPreferences();
         render();
       }
     });
@@ -831,6 +1126,7 @@ function bindEvents() {
       const removeIndex = Number(button.dataset.maRemove);
       const periods = getMultiMaSettings().periods.filter((_period, index) => index !== removeIndex);
       setMaPeriods(periods.length > 0 ? periods : [20]);
+      persistChartPreferences();
       render();
     });
   });
@@ -839,6 +1135,7 @@ function bindEvents() {
     const periods = getMultiMaSettings().periods;
     const nextPeriod = periods.at(-1) ? Math.min(periods.at(-1) + 50, 400) : 20;
     setMaPeriods([...periods, nextPeriod]);
+    persistChartPreferences();
     render();
   });
 
@@ -849,6 +1146,7 @@ function bindEvents() {
 
     indicatorInputRenderTimer = window.setTimeout(() => {
       if (applyRsiInput(event.target)) {
+        persistChartPreferences();
         render();
       }
     }, 350);
@@ -860,6 +1158,7 @@ function bindEvents() {
     }
 
     if (applyRsiInput(event.target)) {
+      persistChartPreferences();
       render();
     }
   });
@@ -872,6 +1171,7 @@ function bindEvents() {
 
       indicatorInputRenderTimer = window.setTimeout(() => {
         if (applyMacdInputs(document.querySelectorAll("[data-macd-setting]"))) {
+          persistChartPreferences();
           render();
         }
       }, 350);
@@ -883,8 +1183,31 @@ function bindEvents() {
       }
 
       if (applyMacdInputs(document.querySelectorAll("[data-macd-setting]"))) {
+        persistChartPreferences();
         render();
       }
+    });
+  });
+
+  document.querySelector("[data-journal-note]")?.addEventListener("input", (event) => {
+    state.journalDraft = event.target.value;
+  });
+
+  document.querySelectorAll("[data-save-journal]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveJournalSnapshot();
+    });
+  });
+
+  document.querySelectorAll("[data-restore-journal]").forEach((button) => {
+    button.addEventListener("click", () => {
+      restoreJournalEntry(button.dataset.restoreJournal);
+    });
+  });
+
+  document.querySelectorAll("[data-delete-journal]").forEach((button) => {
+    button.addEventListener("click", () => {
+      deleteJournalEntry(button.dataset.deleteJournal);
     });
   });
 }
@@ -910,6 +1233,8 @@ async function boot() {
   state.snapshots = payload.snapshots;
   state.snapshotMeta = payload.meta;
   state.appVersion = appVersion;
+  state.journalEntries = loadJournalEntries();
+  loadChartPreferences();
   applyStoredProfile(await memberProfileRepository.load());
   render();
 }
