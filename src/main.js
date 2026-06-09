@@ -1,6 +1,6 @@
 import { canFollowSymbol, entitlements, getTierMessage } from "./domain/entitlements.js";
 import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
-import { renderMarketChart } from "./services/chartRenderer.js?v=custom-ma-20260531";
+import { renderMarketChart } from "./services/chartRenderer.js?v=lower-indicators-20260609";
 import { loadAppVersion } from "./services/appVersionProvider.js";
 import { marketDataProvider } from "./services/marketDataProvider.js";
 import { memberProfileRepository } from "./services/memberProfileRepository.js";
@@ -238,16 +238,16 @@ function renderChartSettings() {
       type: "lower-pane",
       label: "RSI",
       enabled: state.chartSettings.lowerPanes.rsi,
-      supported: false,
-      note: "待接入"
+      supported: true,
+      note: "14"
     },
     {
       key: "macd",
       type: "lower-pane",
       label: "MACD",
       enabled: state.chartSettings.lowerPanes.macd,
-      supported: false,
-      note: "待接入"
+      supported: true,
+      note: "12·26·9"
     }
   ];
 
@@ -499,6 +499,8 @@ function renderMain() {
           </div>
           <div class="divider-legend" aria-label="Divider legend">
             ${state.chartSettings.lowerPanes.pr ? `<span><i class="legend-dot momentum"></i>動能指數</span>` : ""}
+            ${state.chartSettings.lowerPanes.rsi ? `<span><i class="legend-dot rsi"></i>RSI</span>` : ""}
+            ${state.chartSettings.lowerPanes.macd ? `<span><i class="legend-dot macd"></i>MACD</span>` : ""}
             ${
               multiMa.enabled
                 ? multiMa.periods
