@@ -252,6 +252,15 @@ function sanitizeMaPeriods(periods) {
   return unique.slice(0, 5);
 }
 
+function sanitizeIndicatorPeriod(value, fallback, { min = 2, max = 400 } = {}) {
+  const period = Math.round(Number(value));
+  if (Number.isFinite(period) && period >= min && period <= max) {
+    return period;
+  }
+
+  return fallback;
+}
+
 function getChartSettings(settings) {
   const multiMa =
     typeof settings?.overlays?.multiMa === "object"
@@ -260,6 +269,10 @@ function getChartSettings(settings) {
           enabled: settings?.overlays?.multiMa === true,
           periods: [20, 50, 100, 150, 200]
         };
+  const rsi = settings?.indicators?.rsi ?? {};
+  const macd = settings?.indicators?.macd ?? {};
+  const slow = sanitizeIndicatorPeriod(macd.slow, 26, { min: 3, max: 400 });
+  const fast = Math.min(sanitizeIndicatorPeriod(macd.fast, 12, { min: 2, max: 200 }), slow - 1);
 
   return {
     overlays: {
@@ -272,6 +285,16 @@ function getChartSettings(settings) {
       pr: settings?.lowerPanes?.pr !== false,
       rsi: settings?.lowerPanes?.rsi === true,
       macd: settings?.lowerPanes?.macd === true
+    },
+    indicators: {
+      rsi: {
+        period: sanitizeIndicatorPeriod(rsi.period, 14, { min: 2, max: 100 })
+      },
+      macd: {
+        fast,
+        slow,
+        signal: sanitizeIndicatorPeriod(macd.signal, 9, { min: 2, max: 200 })
+      }
     }
   };
 }
@@ -410,7 +433,7 @@ export function renderMarketChart(container, snapshot, range = "6M", settings = 
   }
 
   if (chartSettings.lowerPanes.rsi) {
-    const rsiData = getRsiSeriesData(snapshot);
+    const rsiData = getRsiSeriesData(snapshot, chartSettings.indicators.rsi.period);
     const rsiChart = addLowerPane("rsi-pane", 130);
     const rsiSeries = rsiChart.addSeries(LightweightCharts.LineSeries, {
       color: "#7c3aed",
@@ -429,7 +452,8 @@ export function renderMarketChart(container, snapshot, range = "6M", settings = 
   }
 
   if (chartSettings.lowerPanes.macd) {
-    const macdData = getMacdSeriesData(snapshot);
+    const macdSettings = chartSettings.indicators.macd;
+    const macdData = getMacdSeriesData(snapshot, macdSettings.fast, macdSettings.slow, macdSettings.signal);
     const macdChart = addLowerPane("macd-pane", 150);
     const histogramSeries = macdChart.addSeries(LightweightCharts.HistogramSeries, {
       priceLineVisible: false,
