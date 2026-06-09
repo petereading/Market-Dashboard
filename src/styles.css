@@ -520,6 +520,14 @@ a {
   background: #245c58;
 }
 
+.legend-dot.rsi {
+  background: #7c3aed;
+}
+
+.legend-dot.macd {
+  background: #b64f36;
+}
+
 .legend-dot.week {
   background: #d946ef;
 }
@@ -590,6 +598,14 @@ a {
 }
 
 .momentum-pane {
+  min-height: 150px;
+}
+
+.rsi-pane {
+  min-height: 130px;
+}
+
+.macd-pane {
   min-height: 150px;
 }
 
