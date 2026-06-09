@@ -512,6 +512,23 @@ a {
   text-align: right;
 }
 
+.chart-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -8px;
+}
+
+.chart-actions button,
+.journal-save-button,
+.journal-entry-actions button {
+  min-height: 32px;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #2f7672;
+  color: #ffffff;
+  font-size: 0.8rem;
+}
+
 .legend-dot {
   width: 9px;
   height: 9px;
@@ -690,6 +707,23 @@ a {
   font-size: 1rem;
 }
 
+.panel-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.panel-heading h3 {
+  margin: 0;
+}
+
+.panel-heading span {
+  color: #69726f;
+  font-size: 0.78rem;
+}
+
 .panel p,
 .panel pre {
   margin: 0;
@@ -703,6 +737,91 @@ a {
   font-family:
     "PingFang TC", "Microsoft JhengHei", ui-sans-serif, system-ui, sans-serif;
   font-size: 0.95rem;
+}
+
+.journal-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.journal-note {
+  display: grid;
+  gap: 6px;
+}
+
+.journal-note span {
+  color: #69726f;
+  font-size: 0.78rem;
+}
+
+.journal-note textarea {
+  width: 100%;
+  min-height: 108px;
+  resize: vertical;
+  border: 1px solid #dfd8ca;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #182025;
+  padding: 10px;
+  line-height: 1.5;
+}
+
+.journal-save-button {
+  width: fit-content;
+}
+
+.journal-empty {
+  color: #69726f;
+  font-size: 0.86rem;
+}
+
+.journal-entry-list {
+  display: grid;
+  gap: 10px;
+}
+
+.journal-entry {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid #e8e0d2;
+  padding-top: 10px;
+}
+
+.journal-entry div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.journal-entry strong {
+  color: #182025;
+}
+
+.journal-entry span,
+.journal-entry small {
+  color: #69726f;
+  font-size: 0.76rem;
+}
+
+.journal-entry p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.journal-entry-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.journal-entry-actions button {
+  background: #e8f0ed;
+  color: #2f7672;
+}
+
+.journal-entry-actions button:last-child {
+  background: #f5e6bd;
+  color: #7a6020;
 }
 
 .settings-row {
