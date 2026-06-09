@@ -139,6 +139,10 @@ function average(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function normalizeValue(value, decimals = 2) {
+  return Number(Number(value).toFixed(decimals));
+}
+
 function getMaSeriesData(snapshot, period) {
   const closes = snapshot.prices.map((point) => Number(point.close));
   return snapshot.prices.map((point, index) => {
@@ -148,6 +152,90 @@ function getMaSeriesData(snapshot, period) {
       value: average(window)
     };
   });
+}
+
+function getRsiSeriesData(snapshot, period = 14) {
+  const closes = snapshot.prices.map((point) => Number(point.close));
+  if (closes.length <= period) {
+    return [];
+  }
+
+  const values = [];
+  let gainSum = 0;
+  let lossSum = 0;
+
+  for (let index = 1; index <= period; index += 1) {
+    const change = closes[index] - closes[index - 1];
+    gainSum += Math.max(change, 0);
+    lossSum += Math.max(-change, 0);
+  }
+
+  let averageGain = gainSum / period;
+  let averageLoss = lossSum / period;
+
+  for (let index = period; index < closes.length; index += 1) {
+    if (index > period) {
+      const change = closes[index] - closes[index - 1];
+      averageGain = (averageGain * (period - 1) + Math.max(change, 0)) / period;
+      averageLoss = (averageLoss * (period - 1) + Math.max(-change, 0)) / period;
+    }
+
+    const rsi = averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
+    values.push({
+      time: snapshot.prices[index].date,
+      value: normalizeValue(rsi, 2)
+    });
+  }
+
+  return values;
+}
+
+function getEmaValues(values, period) {
+  const multiplier = 2 / (period + 1);
+  const emaValues = [];
+  let ema = values[0] ?? 0;
+
+  values.forEach((value, index) => {
+    ema = index === 0 ? value : value * multiplier + ema * (1 - multiplier);
+    emaValues.push(ema);
+  });
+
+  return emaValues;
+}
+
+function getMacdSeriesData(snapshot, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+  const closes = snapshot.prices.map((point) => Number(point.close));
+  if (closes.length < slowPeriod) {
+    return {
+      macd: [],
+      signal: [],
+      histogram: []
+    };
+  }
+
+  const fastEma = getEmaValues(closes, fastPeriod);
+  const slowEma = getEmaValues(closes, slowPeriod);
+  const macdValues = closes.map((_close, index) => fastEma[index] - slowEma[index]);
+  const signalValues = getEmaValues(macdValues, signalPeriod);
+
+  return {
+    macd: macdValues.map((value, index) => ({
+      time: snapshot.prices[index].date,
+      value: normalizeValue(value, 4)
+    })),
+    signal: signalValues.map((value, index) => ({
+      time: snapshot.prices[index].date,
+      value: normalizeValue(value, 4)
+    })),
+    histogram: macdValues.map((value, index) => {
+      const histogram = value - signalValues[index];
+      return {
+        time: snapshot.prices[index].date,
+        value: normalizeValue(histogram, 4),
+        color: histogram >= 0 ? "#2f8f83" : "#d9574d"
+      };
+    })
+  };
 }
 
 function sanitizeMaPeriods(periods) {
@@ -181,7 +269,9 @@ function getChartSettings(settings) {
       }
     },
     lowerPanes: {
-      pr: settings?.lowerPanes?.pr !== false
+      pr: settings?.lowerPanes?.pr !== false,
+      rsi: settings?.lowerPanes?.rsi === true,
+      macd: settings?.lowerPanes?.macd === true
     }
   };
 }
@@ -215,7 +305,8 @@ export function renderMarketChart(container, snapshot, range = "6M", settings = 
   const LightweightCharts = getLibrary();
   const chartSettings = getChartSettings(settings);
   container.replaceChildren();
-  container.classList.toggle("single-pane", !chartSettings.lowerPanes.pr);
+  const activeLowerPaneKeys = ["pr", "rsi", "macd"].filter((key) => chartSettings.lowerPanes[key]);
+  container.classList.toggle("single-pane", activeLowerPaneKeys.length === 0);
 
   if (!LightweightCharts) {
     const message = document.createElement("div");
@@ -276,15 +367,23 @@ export function renderMarketChart(container, snapshot, range = "6M", settings = 
   }
 
   const priceCloseByTime = new Map(candleData.map((point) => [point.time, point.close]));
-  let momentumHistory = [];
+
+  function addLowerPane(className, height = 150) {
+    const pane = document.createElement("div");
+    pane.className = `chart-pane ${className}`;
+    container.append(pane);
+
+    const chart = createBaseChart(pane, height, true);
+    lowerCharts.push({
+      chart,
+      dataLength: candleData.length
+    });
+    return chart;
+  }
 
   if (chartSettings.lowerPanes.pr) {
-    const momentumPane = document.createElement("div");
-    momentumPane.className = "chart-pane momentum-pane";
-    container.append(momentumPane);
-
-    momentumHistory = buildPrototypeMomentumHistory(snapshot);
-    const momentumChart = createBaseChart(momentumPane, 150, true);
+    const momentumHistory = buildPrototypeMomentumHistory(snapshot);
+    const momentumChart = addLowerPane("momentum-pane", 150);
     const prSeries = momentumChart.addSeries(LightweightCharts.LineSeries, {
       color: "#245c58",
       lineWidth: 2,
@@ -305,14 +404,61 @@ export function renderMarketChart(container, snapshot, range = "6M", settings = 
       scaleMargins: { top: 0.15, bottom: 0.15 }
     });
 
-    lowerCharts.push({
-      chart: momentumChart,
-      dataLength: momentumHistory.length
-    });
-
     const prByTime = new Map(momentumHistory.map((point) => [point.time, point.prValue]));
     syncCrosshair(priceChart, momentumChart, prSeries, prByTime);
     syncCrosshair(momentumChart, priceChart, candleSeries, priceCloseByTime);
+  }
+
+  if (chartSettings.lowerPanes.rsi) {
+    const rsiData = getRsiSeriesData(snapshot);
+    const rsiChart = addLowerPane("rsi-pane", 130);
+    const rsiSeries = rsiChart.addSeries(LightweightCharts.LineSeries, {
+      color: "#7c3aed",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    rsiSeries.setData(rsiData);
+    rsiChart.priceScale("right").applyOptions({
+      scaleMargins: { top: 0.1, bottom: 0.1 }
+    });
+
+    const rsiByTime = new Map(rsiData.map((point) => [point.time, point.value]));
+    syncCrosshair(priceChart, rsiChart, rsiSeries, rsiByTime);
+    syncCrosshair(rsiChart, priceChart, candleSeries, priceCloseByTime);
+  }
+
+  if (chartSettings.lowerPanes.macd) {
+    const macdData = getMacdSeriesData(snapshot);
+    const macdChart = addLowerPane("macd-pane", 150);
+    const histogramSeries = macdChart.addSeries(LightweightCharts.HistogramSeries, {
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    histogramSeries.setData(macdData.histogram);
+
+    const macdSeries = macdChart.addSeries(LightweightCharts.LineSeries, {
+      color: "#245c58",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    macdSeries.setData(macdData.macd);
+
+    const signalSeries = macdChart.addSeries(LightweightCharts.LineSeries, {
+      color: "#b64f36",
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    signalSeries.setData(macdData.signal);
+    macdChart.priceScale("right").applyOptions({
+      scaleMargins: { top: 0.18, bottom: 0.18 }
+    });
+
+    const macdByTime = new Map(macdData.macd.map((point) => [point.time, point.value]));
+    syncCrosshair(priceChart, macdChart, macdSeries, macdByTime);
+    syncCrosshair(macdChart, priceChart, candleSeries, priceCloseByTime);
   }
 
   applyRange(priceChart, range, candleData.length);
