@@ -1,6 +1,6 @@
 import { canFollowSymbol, entitlements, getTierMessage } from "./domain/entitlements.js";
 import { buildWeeklyDigest } from "./domain/weeklyDigest.js";
-import { renderMarketChart } from "./services/chartRenderer.js?v=lower-indicators-20260609";
+import { renderMarketChart } from "./services/chartRenderer.js?v=indicator-settings-20260609";
 import { loadAppVersion } from "./services/appVersionProvider.js";
 import { marketDataProvider } from "./services/marketDataProvider.js";
 import { memberProfileRepository } from "./services/memberProfileRepository.js";
@@ -25,6 +25,16 @@ const state = {
       pr: true,
       rsi: false,
       macd: false
+    },
+    indicators: {
+      rsi: {
+        period: 14
+      },
+      macd: {
+        fast: 12,
+        slow: 26,
+        signal: 9
+      }
     }
   },
   includeSymbolDetails: true,
@@ -37,6 +47,7 @@ const maxLowerPanes = 2;
 const maxMaLines = 5;
 const maColors = ["#0f766e", "#7c3aed", "#db2777", "#ca8a04", "#64748b"];
 let maInputRenderTimer = null;
+let indicatorInputRenderTimer = null;
 
 const app = document.querySelector("#app");
 
@@ -213,9 +224,101 @@ function applyMaInputs(inputs) {
   return true;
 }
 
+function sanitizeIndicatorPeriod(value, fallback, { min = 2, max = 400 } = {}) {
+  const period = Math.round(Number(value));
+  if (Number.isFinite(period) && period >= min && period <= max) {
+    return period;
+  }
+
+  return fallback;
+}
+
+function getRsiSettings() {
+  const settings = state.chartSettings.indicators?.rsi ?? {};
+  return {
+    period: sanitizeIndicatorPeriod(settings.period, 14, { min: 2, max: 100 })
+  };
+}
+
+function getMacdSettings() {
+  const settings = state.chartSettings.indicators?.macd ?? {};
+  const fast = sanitizeIndicatorPeriod(settings.fast, 12, { min: 2, max: 200 });
+  const slow = sanitizeIndicatorPeriod(settings.slow, 26, { min: 3, max: 400 });
+  const signal = sanitizeIndicatorPeriod(settings.signal, 9, { min: 2, max: 200 });
+
+  return {
+    fast: Math.min(fast, slow - 1),
+    slow,
+    signal
+  };
+}
+
+function setRsiSettings(settings) {
+  state.chartSettings.indicators = {
+    ...state.chartSettings.indicators,
+    rsi: {
+      ...getRsiSettings(),
+      ...settings
+    }
+  };
+}
+
+function setMacdSettings(settings) {
+  const next = {
+    ...getMacdSettings(),
+    ...settings
+  };
+
+  state.chartSettings.indicators = {
+    ...state.chartSettings.indicators,
+    macd: {
+      fast: sanitizeIndicatorPeriod(next.fast, 12, { min: 2, max: 200 }),
+      slow: sanitizeIndicatorPeriod(next.slow, 26, { min: 3, max: 400 }),
+      signal: sanitizeIndicatorPeriod(next.signal, 9, { min: 2, max: 200 })
+    }
+  };
+}
+
+function applyRsiInput(input) {
+  const value = Math.round(Number(input.value));
+  if (!Number.isFinite(value) || value < 2 || value > 100) {
+    return false;
+  }
+
+  setRsiSettings({ period: value });
+  return true;
+}
+
+function applyMacdInputs(inputs) {
+  const values = Object.fromEntries([...inputs].map((input) => [input.dataset.macdSetting, Number(input.value)]));
+  const fast = Math.round(values.fast);
+  const slow = Math.round(values.slow);
+  const signal = Math.round(values.signal);
+
+  if (
+    !Number.isFinite(fast) ||
+    !Number.isFinite(slow) ||
+    !Number.isFinite(signal) ||
+    fast < 2 ||
+    slow < 3 ||
+    signal < 2 ||
+    fast >= slow ||
+    fast > 200 ||
+    slow > 400 ||
+    signal > 200
+  ) {
+    return false;
+  }
+
+  setMacdSettings({ fast, slow, signal });
+  return true;
+}
+
 function renderChartSettings() {
   const lowerPaneCount = getActiveLowerPaneCount();
   const multiMa = getMultiMaSettings();
+  const rsi = getRsiSettings();
+  const macd = getMacdSettings();
   const controls = [
     {
       key: "multiMa",
@@ -239,7 +342,7 @@ function renderChartSettings() {
       label: "RSI",
       enabled: state.chartSettings.lowerPanes.rsi,
       supported: true,
-      note: "14"
+      note: `${rsi.period}`
     },
     {
       key: "macd",
@@ -247,7 +350,7 @@ function renderChartSettings() {
       label: "MACD",
       enabled: state.chartSettings.lowerPanes.macd,
       supported: true,
-      note: "12·26·9"
+      note: `${macd.fast}·${macd.slow}·${macd.signal}`
     }
   ];
 
@@ -284,6 +387,7 @@ function renderChartSettings() {
       </div>
     </div>
     ${multiMa.enabled ? renderMaPeriodSettings(multiMa.periods) : ""}
+    ${renderLowerIndicatorSettings()}
   `;
 }
 
@@ -311,6 +415,49 @@ function renderMaPeriodSettings(periods) {
           ? `<button type="button" class="ma-add-button" data-ma-add>+</button>`
           : ""
       }
+    </div>
+  `;
+}
+
+function renderLowerIndicatorSettings() {
+  const rsi = getRsiSettings();
+  const macd = getMacdSettings();
+  const hasRsi = state.chartSettings.lowerPanes.rsi;
+  const hasMacd = state.chartSettings.lowerPanes.macd;
+
+  if (!hasRsi && !hasMacd) {
+    return "";
+  }
+
+  return `
+    <div class="lower-indicator-settings" aria-label="Lower indicator settings">
+      ${hasRsi
+        ? `
+          <label class="indicator-period-control">
+            <span>RSI</span>
+            <input type="number" min="2" max="100" step="1" value="${rsi.period}" data-rsi-period />
+          </label>
+        `
+        : ""}
+      ${hasMacd
+        ? `
+          <div class="macd-settings-group" aria-label="MACD settings">
+            <span class="macd-settings-label">MACD</span>
+            <label class="indicator-period-control">
+              <span>Fast</span>
+              <input type="number" min="2" max="200" step="1" value="${macd.fast}" data-macd-setting="fast" />
+            </label>
+            <label class="indicator-period-control">
+              <span>Slow</span>
+              <input type="number" min="3" max="400" step="1" value="${macd.slow}" data-macd-setting="slow" />
+            </label>
+            <label class="indicator-period-control">
+              <span>Signal</span>
+              <input type="number" min="2" max="200" step="1" value="${macd.signal}" data-macd-setting="signal" />
+            </label>
+          </div>
+        `
+        : ""}
     </div>
   `;
 }
@@ -693,6 +840,52 @@ function bindEvents() {
     const nextPeriod = periods.at(-1) ? Math.min(periods.at(-1) + 50, 400) : 20;
     setMaPeriods([...periods, nextPeriod]);
     render();
+  });
+
+  document.querySelector("[data-rsi-period]")?.addEventListener("input", (event) => {
+    if (indicatorInputRenderTimer) {
+      window.clearTimeout(indicatorInputRenderTimer);
+    }
+
+    indicatorInputRenderTimer = window.setTimeout(() => {
+      if (applyRsiInput(event.target)) {
+        render();
+      }
+    }, 350);
+  });
+
+  document.querySelector("[data-rsi-period]")?.addEventListener("change", (event) => {
+    if (indicatorInputRenderTimer) {
+      window.clearTimeout(indicatorInputRenderTimer);
+    }
+
+    if (applyRsiInput(event.target)) {
+      render();
+    }
+  });
+
+  document.querySelectorAll("[data-macd-setting]").forEach((input) => {
+    input.addEventListener("input", () => {
+      if (indicatorInputRenderTimer) {
+        window.clearTimeout(indicatorInputRenderTimer);
+      }
+
+      indicatorInputRenderTimer = window.setTimeout(() => {
+        if (applyMacdInputs(document.querySelectorAll("[data-macd-setting]"))) {
+          render();
+        }
+      }, 350);
+    });
+
+    input.addEventListener("change", () => {
+      if (indicatorInputRenderTimer) {
+        window.clearTimeout(indicatorInputRenderTimer);
+      }
+
+      if (applyMacdInputs(document.querySelectorAll("[data-macd-setting]"))) {
+        render();
+      }
+    });
   });
 }
 
