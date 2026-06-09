@@ -384,12 +384,25 @@ a {
   background: #fffdf7;
 }
 
+.lower-indicator-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: -8px;
+  padding: 8px;
+  border: 1px solid #dfd8ca;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
 .ma-settings-label {
   color: #69726f;
   font-size: 0.78rem;
 }
 
-.ma-period-control {
+.ma-period-control,
+.indicator-period-control {
   display: inline-grid;
   grid-template-columns: auto 54px auto;
   align-items: center;
@@ -402,7 +415,12 @@ a {
   font-size: 0.72rem;
 }
 
-.ma-period-control input {
+.indicator-period-control {
+  grid-template-columns: auto 54px;
+}
+
+.ma-period-control input,
+.indicator-period-control input {
   width: 54px;
   height: 26px;
   border: 1px solid #dfd8ca;
@@ -410,6 +428,18 @@ a {
   background: #ffffff;
   color: #182025;
   padding: 0 5px;
+}
+
+.macd-settings-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.macd-settings-label {
+  color: #69726f;
+  font-size: 0.78rem;
 }
 
 .ma-remove-button,
